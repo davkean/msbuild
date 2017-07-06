@@ -7,27 +7,20 @@
 //-----------------------------------------------------------------------
 
 using System;
-using System.Xml;
-using System.Diagnostics;
-using System.Collections;
 using System.Collections.Generic;
-using System.Collections.Specialized;
+using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.IO.Pipes;
-using System.Reflection;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Globalization;
-using System.Xml.Serialization;
-using System.Security;
-using System.Security.Policy;
-using System.Security.Permissions;
-using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Threading;
 
 using Microsoft.Build.Shared;
+using System.Reflection;
+#if !FEATURE_APM
+using System.Threading.Tasks;
+#endif
 
 namespace Microsoft.Build.Internal
 {
@@ -154,6 +147,7 @@ namespace Microsoft.Build.Internal
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         internal static unsafe extern bool FreeEnvironmentStrings(char* pStrings);
 
+#if FEATURE_RTLMOVEMEMORY
         /// <summary>
         /// Move a block of chars
         /// </summary>
@@ -209,6 +203,7 @@ namespace Microsoft.Build.Internal
 
             return block;
         }
+#endif
 
         /// <summary>
         /// Copied from the BCL implementation to eliminate some expensive security asserts.
@@ -217,9 +212,10 @@ namespace Microsoft.Build.Internal
         /// </summary>
         internal static Dictionary<string, string> GetEnvironmentVariables()
         {
-            char[] block = GetEnvironmentCharArray();
-
             Dictionary<string, string> table = new Dictionary<string, string>(200, StringComparer.OrdinalIgnoreCase); // Razzle has 150 environment variables
+
+#if FEATURE_RTLMOVEMEMORY
+            char[] block = GetEnvironmentCharArray();
 
             // Copy strings out, parsing into pairs and inserting into the table.
             // The first few environment variable entries start with an '='!
@@ -240,7 +236,7 @@ namespace Microsoft.Build.Internal
 
                 // Skip to key
                 // On some old OS, the environment block can be corrupted. 
-                // Someline will not have '=', so we need to check for '\0'. 
+                // Some lines will not have '=', so we need to check for '\0'. 
                 while (block[i] != '=' && block[i] != '\0')
                 {
                     i++;
@@ -270,7 +266,7 @@ namespace Microsoft.Build.Internal
 
                 while (block[i] != 0)
                 {
-                    // Read to end of this entry 
+                    // Read to end of this entry
                     i++;
                 }
 
@@ -279,6 +275,13 @@ namespace Microsoft.Build.Internal
                 // skip over 0 handled by for loop's i++
                 table[key] = value;
             }
+#else
+            var vars = Environment.GetEnvironmentVariables();
+            foreach (var key in vars.Keys)
+            {
+                table[(string)key] = (string)vars[key];
+            }
+#endif
 
             return table;
         }
@@ -313,6 +316,7 @@ namespace Microsoft.Build.Internal
         /// </summary>
         internal static long GenerateHostHandshakeFromBase(long baseHandshake, long clientHandshake)
         {
+#if FEATURE_SECURITY_PRINCIPAL_WINDOWS
             // If we are running in elevated privs, we will only accept a handshake from an elevated process as well.
             WindowsPrincipal principal = new WindowsPrincipal(WindowsIdentity.GetCurrent());
 
@@ -331,6 +335,7 @@ namespace Microsoft.Build.Internal
                     baseHandshake = ~baseHandshake;
                 }
             }
+#endif
 
             // Mask out the first byte. That's because old
             // builds used a single, non zero initial byte,
@@ -444,6 +449,23 @@ namespace Microsoft.Build.Internal
             return result;
         }
 
+#if !FEATURE_APM
+        internal static async Task<int> ReadAsync(Stream stream, byte[] buffer, int bytesToRead)
+        {
+            int totalBytesRead = 0;
+            while (totalBytesRead < bytesToRead)
+            {
+                int bytesRead = await stream.ReadAsync(buffer, totalBytesRead, bytesToRead - totalBytesRead);
+                if (bytesRead == 0)
+                {
+                    return totalBytesRead;
+                }
+                totalBytesRead += bytesRead;
+            }
+            return totalBytesRead;
+        }
+#endif
+
         /// <summary>
         /// Given the appropriate information, return the equivalent TaskHostContext.  
         /// </summary>
@@ -519,7 +541,7 @@ namespace Microsoft.Build.Internal
             // We know that whichever assembly is executing this code -- whether it's MSBuildTaskHost.exe or 
             // Microsoft.Build.dll -- is of the version of the CLR that this process is running.  So grab
             // the version of mscorlib currently in use and call that good enough.  
-            Version mscorlibVersion = typeof(bool).Assembly.GetName().Version;
+            Version mscorlibVersion = typeof(bool).GetTypeInfo().Assembly.GetName().Version;
 
             string currentMSBuildArchitecture = XMakeAttributes.GetCurrentMSBuildArchitecture();
             TaskHostContext hostContext = GetTaskHostContext(currentMSBuildArchitecture.Equals(XMakeAttributes.MSBuildArchitectureValues.x64), mscorlibVersion.Major);
@@ -586,11 +608,11 @@ namespace Microsoft.Build.Internal
 
                     fileName += ".txt";
 
-                    using (StreamWriter file = new StreamWriter(String.Format(CultureInfo.CurrentCulture, Path.Combine(s_debugDumpPath, fileName), Process.GetCurrentProcess().Id, nodeId), true))
+                    using (StreamWriter file = FileUtilities.OpenWrite(String.Format(CultureInfo.CurrentCulture, Path.Combine(s_debugDumpPath, fileName), Process.GetCurrentProcess().Id, nodeId), append: true))
                     {
                         string message = String.Format(CultureInfo.CurrentCulture, format, args);
                         long now = DateTime.UtcNow.Ticks;
-                        float millisecondsSinceLastLog = (float)((now - s_lastLoggedTicks) / 10000L);
+                        float millisecondsSinceLastLog = (float)(now - s_lastLoggedTicks) / 10000L;
                         s_lastLoggedTicks = now;
                         file.WriteLine("{0} (TID {1}) {2,15} +{3,10}ms: {4}", Thread.CurrentThread.Name, Thread.CurrentThread.ManagedThreadId, now, millisecondsSinceLastLog, message);
                     }

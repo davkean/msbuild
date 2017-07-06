@@ -7,7 +7,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 
 namespace Microsoft.Build.Framework
@@ -23,7 +22,9 @@ namespace Microsoft.Build.Framework
     /// without following certain special FX guidelines, can break both
     /// forward and backward compatibility
     /// </remarks>
+#if FEATURE_BINARY_SERIALIZATION
     [Serializable]
+#endif
     public class CriticalBuildMessageEventArgs : BuildMessageEventArgs
     {
         /// <summary>

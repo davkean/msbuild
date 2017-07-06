@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), dir.props))\dir.props" />
+  <Import Project="..\dir.props" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
@@ -10,6 +10,9 @@
     <RootNamespace>Microsoft.Build.Utilities</RootNamespace>
     <AssemblyName>Microsoft.Build.Utilities.Core</AssemblyName>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EnableDocumentationFile>true</EnableDocumentationFile>
+    <GenerateReferenceAssemblySources>true</GenerateReferenceAssemblySources>
+    <UpdateNuGetPackageDependencies>true</UpdateNuGetPackageDependencies>
   </PropertyGroup>
   <!-- Default configurations to help VS understand the configurations -->
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' " />
@@ -18,7 +21,12 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x86'" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug-MONO|AnyCPU'" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release-MONO|AnyCPU'" />
   <ItemGroup>
+    <Compile Condition="'$(NetCoreBuild)' == 'true'" Include="..\Shared\Compat\SafeHandleZeroOrMinusOneIsInvalid.cs">
+      <Link>Compat\SafeHandleZeroOrMinusOneIsInvalid.cs</Link>
+    </Compile>
     <!-- Source Files -->
     <Compile Include="..\Shared\AssemblyFolders\AssemblyFoldersEx.cs">
       <Link>AssemblyFolders\AssemblyFoldersEx.cs</Link>
@@ -31,6 +39,12 @@
     </Compile>
     <Compile Include="..\Shared\AssemblyFolders\Serialization\AssemblyFolderItem.cs">
       <Link>AssemblyFolders\Serialization\AssemblyFolderItem.cs</Link>
+    </Compile>
+    <Compile Include="..\Shared\EnvironmentUtilities.cs">
+      <Link>EnvironmentUtilities.cs</Link>
+    </Compile>
+    <Compile Include="..\Shared\FileUtilities.GetFolderPath.cs">
+      <Link>FileUtilities.GetFolderPath.cs</Link>
     </Compile>
     <Compile Include="..\Shared\BuildEnvironmentHelper.cs">
       <Link>BuildEnvironmentHelper.cs</Link>
@@ -75,6 +89,9 @@
     <Compile Include="..\Shared\ExceptionHandling.cs">
       <Link>ExceptionHandling.cs</Link>
     </Compile>
+    <Compile Include="..\Shared\EscapingStringExtensions\EscapingStringExtensions.cs">
+      <Link>EscapingStringExtensions\EscapingStringExtensions.cs</Link>
+    </Compile>
     <Compile Include="..\Shared\FileUtilities.cs">
       <Link>FileUtilities.cs</Link>
       <ExcludeFromStyleCop>true</ExcludeFromStyleCop>
@@ -104,6 +121,10 @@
     </Compile>
     <Compile Include="..\Shared\NativeMethodsShared.cs">
       <Link>NativeMethodsShared.cs</Link>
+      <ExcludeFromStyleCop>true</ExcludeFromStyleCop>
+    </Compile>
+    <Compile Include="..\Shared\AssemblyUtilities.cs">
+      <Link>AssemblyUtilities.cs</Link>
       <ExcludeFromStyleCop>true</ExcludeFromStyleCop>
     </Compile>
     <Compile Include="..\Shared\InprocTrackingNativeMethods.cs">
@@ -155,6 +176,9 @@
     <Compile Include="..\Shared\VisualStudioLocationHelper.cs">
       <Link>VisualStudioLocationHelper.cs</Link>
     </Compile>
+    <Compile Include="..\Shared\Traits.cs">
+      <Link>SharedTraits.cs</Link>
+    </Compile>
     <Compile Include="ApiContract.cs" />
     <Compile Include="AppDomainIsolatedTask.cs">
       <ExcludeFromStyleCop>true</ExcludeFromStyleCop>
@@ -197,6 +221,9 @@
     <Compile Include="ToolTask.cs">
       <ExcludeFromStyleCop>true</ExcludeFromStyleCop>
     </Compile>
+    <Compile Include="ProcessExtensions.cs">
+      <ExcludeFromStyleCop>true</ExcludeFromStyleCop>
+    </Compile>
     <!-- FileTracker Managed Libraries -->
     <Compile Include="TrackedDependencies\CanonicalTrackedInputFiles.cs">
       <ExcludeFromStyleCop>true</ExcludeFromStyleCop>
@@ -231,25 +258,23 @@
       <SubType>Designer</SubType>
       <LogicalName>$(AssemblyName).Strings.shared.resources</LogicalName>
     </EmbeddedResource>
-    <!-- Assemblies Files we depend on -->
+  </ItemGroup>
+  <!-- Assemblies Files we depend on -->
+  <ItemGroup Condition="'$(NetCoreBuild)' != 'true'">
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Runtime.Serialization" />
-    <Reference Include="System.XML" />
+    <Reference Include="System.Xml" />
     <Reference Include="System.Configuration" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Framework\Microsoft.Build.Framework.csproj">
       <Project>{571F09DB-A81A-4444-945C-6F7B530054CD}</Project>
       <Name>Microsoft.Build.Framework</Name>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <FilesToSign Include="$(OutDir)\$(AssemblyName)$(TargetExt)">
-      <Authenticode>Microsoft</Authenticode>
-      <StrongName>StrongName</StrongName>
-    </FilesToSign>
-  </ItemGroup>
-  <ItemGroup>
     <None Include="project.json" />
   </ItemGroup>
-  <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), dir.targets))\dir.targets" />
+  <Import Project="..\dir.targets" />
 </Project>

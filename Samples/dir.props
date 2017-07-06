@@ -2,8 +2,6 @@
   <Import Project="..\dir.props" />
 
   <PropertyGroup>
-    <!-- Explicitly set the OutDir as it is used by the packaging targets -->
-    <OutDir>$(BaseOutputPath)Samples\$(Configuration)\$(MSBuildProjectName)</OutDir>
+    <SolutionRoot>$(MSBuildThisFileDirectory)</SolutionRoot>
   </PropertyGroup>
-  
 </Project>

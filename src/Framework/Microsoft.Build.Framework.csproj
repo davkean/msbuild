@@ -1,13 +1,16 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), dir.props))\dir.props" />
+  <Import Project="..\dir.props" />
   <PropertyGroup>
     <ProjectGuid>{571F09DB-A81A-4444-945C-6F7B530054CD}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Microsoft.Build.Framework</RootNamespace>
     <AssemblyName>Microsoft.Build.Framework</AssemblyName>
+    <EnableDocumentationFile>true</EnableDocumentationFile>
+    <UpdateNuGetPackageDependencies>true</UpdateNuGetPackageDependencies>
     <DoNotLocalizeProject>true</DoNotLocalizeProject>
+    <GenerateReferenceAssemblySources>true</GenerateReferenceAssemblySources>
   </PropertyGroup>
   <!-- Default configurations to help VS understand the configurations -->
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' " />
@@ -16,7 +19,12 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x86'" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug-MONO|AnyCPU'" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release-MONO|AnyCPU'" />
   <ItemGroup>
+    <Compile Include="..\Shared\Constants.cs">
+      <Link>Constants.cs</Link>
+    </Compile>
     <Compile Include="AssemblyInfo.cs">
       <ExcludeFromStyleCop>true</ExcludeFromStyleCop>
     </Compile>
@@ -57,6 +65,8 @@
     </Compile>
     <Compile Include="IBuildEngine3.cs" />
     <Compile Include="IBuildEngine4.cs" />
+    <Compile Include="IBuildEngine5.cs" />
+    <Compile Include="IEventSource2.cs" />
     <Compile Include="IGeneratedTask.cs" />
     <Compile Include="LazyFormattedBuildEventArgs.cs" />
     <Compile Include="IBuildEngine.cs">
@@ -105,12 +115,16 @@
     <Compile Include="OutputAttribute.cs">
       <ExcludeFromStyleCop>true</ExcludeFromStyleCop>
     </Compile>
+    <Compile Include="ProjectEvaluationFinishedEventArgs.cs" />
+    <Compile Include="ProjectEvaluationStartedEventArgs.cs" />
+    <Compile Include="ProjectImportedEventArgs.cs" />
     <Compile Include="ProjectFinishedEventArgs.cs">
       <ExcludeFromStyleCop>true</ExcludeFromStyleCop>
     </Compile>
     <Compile Include="ProjectStartedEventArgs.cs">
       <ExcludeFromStyleCop>true</ExcludeFromStyleCop>
     </Compile>
+    <Compile Include="Sdk\SdkReference.cs" />
     <Compile Include="RequiredAttribute.cs">
       <ExcludeFromStyleCop>true</ExcludeFromStyleCop>
     </Compile>
@@ -119,6 +133,11 @@
     </Compile>
     <Compile Include="RunInMTAAttribute.cs" />
     <Compile Include="RunInSTAAttribute.cs" />
+    <Compile Include="Sdk\SdkLogger.cs" />
+    <Compile Include="Sdk\SdkResolver.cs" />
+    <Compile Include="Sdk\SdkResolverContext.cs" />
+    <Compile Include="Sdk\SdkResult.cs" />
+    <Compile Include="Sdk\SdkResultFactory.cs" />
     <Compile Include="TargetFinishedEventArgs.cs">
       <ExcludeFromStyleCop>true</ExcludeFromStyleCop>
     </Compile>
@@ -135,6 +154,13 @@
     <Compile Include="TaskStartedEventArgs.cs">
       <ExcludeFromStyleCop>true</ExcludeFromStyleCop>
     </Compile>
+    <Compile Include="TelemetryEventArgs.cs" />
+    <None Include="Event args classes.cd" />
+    <None Include="project.json" />
+    <!-- Win32 RC Files -->
+    <RCResourceFile Include="native.rc" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(FeatureXamlTypes)' == 'true'">
     <Compile Include="XamlTypes\Argument.cs" />
     <Compile Include="XamlTypes\BaseProperty.cs" />
     <Compile Include="XamlTypes\BoolProperty.cs" />
@@ -157,25 +183,14 @@
     <Compile Include="XamlTypes\StringListProperty.cs" />
     <Compile Include="XamlTypes\StringProperty.cs" />
     <Compile Include="XamlTypes\ValueEditor.cs" />
-    <None Include="Event args classes.cd" />
-    <!-- Win32 RC Files -->
-    <RCResourceFile Include="native.rc" />
   </ItemGroup>
-  <ItemGroup>
+  <ItemGroup Condition="'$(NetCoreBuild)' != 'true'">
     <Reference Include="System" />
     <Reference Include="System.Core" />
-    <Reference Include="System.Data" />
-    <Reference Include="System.Xml" />
     <Reference Include="System.Xaml" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Properties\" />
   </ItemGroup>
-  <ItemGroup>
-    <FilesToSign Include="$(OutDir)\$(AssemblyName)$(TargetExt)">
-      <Authenticode>Microsoft</Authenticode>
-      <StrongName>StrongName</StrongName>
-    </FilesToSign>
-  </ItemGroup>
-  <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), dir.targets))\dir.targets" />
+  <Import Project="..\dir.targets" />
 </Project>

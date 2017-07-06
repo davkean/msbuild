@@ -8,11 +8,10 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Globalization;
-using System.Linq;
-using System.Text;
+#if FEATURE_BINARY_SERIALIZATION
 using System.Runtime.Serialization;
+#endif
+
 using Microsoft.Build.Shared;
 
 namespace Microsoft.Build.Collections
@@ -23,7 +22,9 @@ namespace Microsoft.Build.Collections
     /// </summary>
     /// <typeparam name="TKey">The key type</typeparam>
     /// <typeparam name="TValue">The value type</typeparam>
+#if FEATURE_BINARY_SERIALIZATION
     [Serializable]
+#endif
     internal class HybridDictionary<TKey, TValue> : IDictionary<TKey, TValue>, IDictionary, ICollection where TValue : class
     {
         /// <summary>
@@ -47,7 +48,7 @@ namespace Microsoft.Build.Collections
         static HybridDictionary()
         {
             int value;
-            if (Int32.TryParse(System.Environment.GetEnvironmentVariable("MSBuildHybridDictThreshold"), out value))
+            if (Int32.TryParse(Environment.GetEnvironmentVariable("MSBuildHybridDictThreshold"), out value))
             {
                 MaxListSize = value;
             }
@@ -103,6 +104,7 @@ namespace Microsoft.Build.Collections
             }
         }
 
+#if FEATURE_BINARY_SERIALIZATION
         /// <summary>
         /// Serialization constructor.
         /// </summary>
@@ -110,6 +112,7 @@ namespace Microsoft.Build.Collections
         {
             throw new NotImplementedException();
         }
+#endif
 
         /// <summary>
         /// Cloning constructor.
@@ -346,8 +349,8 @@ namespace Microsoft.Build.Collections
         /// </summary>
         public object this[object key]
         {
-            get { return (Object)this[key]; }
-            set { this[key] = value; }
+            get { return ((IDictionary<TKey, TValue>)this)[(TKey)key]; }
+            set { ((IDictionary<TKey, TValue>)this)[(TKey)key] = (TValue)value; }
         }
 
         /// <summary>
@@ -580,7 +583,7 @@ namespace Microsoft.Build.Collections
         /// <summary>
         /// Gets an enumerator over the key/value pairs in the dictionary.
         /// </summary>
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+        IEnumerator IEnumerable.GetEnumerator()
         {
             return GetEnumerator();
         }

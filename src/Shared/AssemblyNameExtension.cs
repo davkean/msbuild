@@ -8,7 +8,14 @@ using System.Collections;
 using System.Globalization;
 using System.Diagnostics;
 using System.Collections.Generic;
+#if FEATURE_BINARY_SERIALIZATION
 using System.Runtime.Serialization;
+#endif
+using System.IO;
+#if !FEATURE_ASSEMBLY_LOADFROM
+using System.Reflection.PortableExecutable;
+using System.Reflection.Metadata;
+#endif
 
 namespace Microsoft.Build.Shared
 {
@@ -50,7 +57,7 @@ namespace Microsoft.Build.Shared
     /// between the two is done lazily on demand.
     /// </summary>
     [Serializable]
-    sealed internal class AssemblyNameExtension
+    internal sealed class AssemblyNameExtension
     {
         private AssemblyName asAssemblyName = null;
         private string asString = null;
@@ -123,7 +130,7 @@ namespace Microsoft.Build.Shared
         internal static AssemblyNameExtension GetAssemblyNameEx(string path)
         {
             AssemblyName assemblyName = null;
-
+#if FEATURE_ASSEMBLY_LOADFROM
             try
             {
                 assemblyName = AssemblyName.GetAssemblyName(path);
@@ -140,7 +147,22 @@ namespace Microsoft.Build.Shared
             {
                 // Its pretty hard to get here, also since we do a file existence check right before calling this method so it can only happen if the file got deleted between that check and this call.
             }
+#else
+            using (var stream = File.OpenRead(path))
+            using (var peFile = new PEReader(stream))
+            {
+                var metadataReader = peFile.GetMetadataReader();
+                
+                var entry = metadataReader.GetAssemblyDefinition();
 
+                assemblyName = new AssemblyName();
+                assemblyName.Name = metadataReader.GetString(entry.Name);
+                assemblyName.Version = entry.Version;
+                assemblyName.CultureName = metadataReader.GetString(entry.Culture);
+                assemblyName.SetPublicKey(metadataReader.GetBlobBytes(entry.PublicKey));
+                assemblyName.Flags = (AssemblyNameFlags)(int)entry.Flags;
+            }
+#endif
             if (assemblyName == null)
             {
                 return null;
@@ -148,6 +170,7 @@ namespace Microsoft.Build.Shared
             return new AssemblyNameExtension(assemblyName);
         }
 
+#if FEATURE_BINARY_SERIALIZATION
         /// <summary>
         /// Run after the object has been deserialized
         /// </summary>
@@ -156,6 +179,7 @@ namespace Microsoft.Build.Shared
         {
             InitializeRemappedFrom();
         }
+#endif
 
         /// <summary>
         /// Initialize the remapped from structure.
@@ -294,7 +318,15 @@ namespace Microsoft.Build.Shared
             {
                 // Is there a string?
                 CreateAssemblyName();
+#if FEATURE_ASSEMBLYNAME_CULTUREINFO
                 return asAssemblyName.CultureInfo;
+#else
+                if (asAssemblyName.CultureName == null)
+                {
+                    return null;
+                }
+                return new CultureInfo(asAssemblyName.CultureName);
+#endif
             }
         }
 
@@ -400,8 +432,6 @@ namespace Microsoft.Build.Shared
         /// <summary>
         /// Compare one assembly name to another.
         /// </summary>
-        /// <param name="that"></param>
-        /// <returns></returns>
         internal int CompareTo(AssemblyNameExtension that, bool considerRetargetableFlag)
         {
             // Are they identical?
@@ -562,7 +592,7 @@ namespace Microsoft.Build.Shared
 
             if (asAssemblyName != null)
             {
-                newExtension.asAssemblyName = (AssemblyName)asAssemblyName.Clone();
+                newExtension.asAssemblyName = asAssemblyName.CloneIfPossible();
             }
 
             newExtension.asString = asString;
@@ -637,8 +667,6 @@ namespace Microsoft.Build.Shared
         /// <summary>
         /// Compare two assembly names for equality.
         /// </summary>
-        /// <param name="that"></param>
-        /// <returns></returns>
         private bool EqualsImpl(AssemblyNameExtension that, bool ignoreVersion, bool considerRetargetableFlag)
         {
             // Pointer compare.
@@ -710,6 +738,7 @@ namespace Microsoft.Build.Shared
         internal bool CompareCulture(AssemblyNameExtension that)
         {
             // Do the Cultures match?
+#if FEATURE_ASSEMBLYNAME_CULTUREINFO
             CultureInfo aCulture = CultureInfo;
             CultureInfo bCulture = that.CultureInfo;
             if (aCulture == null)
@@ -720,12 +749,16 @@ namespace Microsoft.Build.Shared
             {
                 bCulture = CultureInfo.InvariantCulture;
             }
+
             if (aCulture.LCID != bCulture.LCID)
             {
                 return false;
             }
 
             return true;
+#else
+            return CultureInfo?.Name == that.CultureInfo?.Name;
+#endif
         }
 
         /// <summary>

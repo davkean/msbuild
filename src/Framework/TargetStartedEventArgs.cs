@@ -18,7 +18,9 @@ namespace Microsoft.Build.Framework
     /// without following certain special FX guidelines, can break both
     /// forward and backward compatibility
     /// </remarks>    
+#if FEATURE_BINARY_SERIALIZATION
     [Serializable]
+#endif
     public class TargetStartedEventArgs : BuildStatusEventArgs
     {
         /// <summary>
@@ -59,6 +61,7 @@ namespace Microsoft.Build.Framework
         /// <param name="targetName">target name</param>
         /// <param name="projectFile">project file</param>
         /// <param name="targetFile">file in which the target is defined</param>
+        /// <param name="parentTarget">The part of the target.</param>
         /// <param name="eventTimestamp">Timestamp when the event was created</param>
         public TargetStartedEventArgs
         (
@@ -83,6 +86,7 @@ namespace Microsoft.Build.Framework
         private string targetFile;
         private string parentTarget;
 
+#if FEATURE_BINARY_SERIALIZATION
         #region CustomSerializationToStream
         /// <summary>
         /// Serializes to a stream through a binary writer
@@ -190,6 +194,7 @@ namespace Microsoft.Build.Framework
             #endregion
         }
         #endregion
+#endif
 
         /// <summary>
         /// target name

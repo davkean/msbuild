@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
+// Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 //-----------------------------------------------------------------------
 // </copyright>
@@ -6,13 +6,11 @@
 //-----------------------------------------------------------------------
 
 using System;
-using System.IO;
-using System.Collections;
 using System.Collections.Generic;
-using System.Runtime.Serialization;
+using System.IO;
+#if FEATURE_BINARY_SERIALIZATION
 using System.Runtime.Serialization.Formatters.Binary;
-using Microsoft.Build.Evaluation;
-using Microsoft.Build.UnitTests;
+#endif
 using Microsoft.Build.Collections;
 using Microsoft.Build.Execution;
 using Microsoft.Build.Shared;
@@ -202,6 +200,7 @@ namespace Microsoft.Build.UnitTests.OM.Collections
             Assert.Equal(clone["test"], "2");
         }
 
+#if FEATURE_BINARY_SERIALIZATION
         /// <summary>
         /// Serialize basic case
         /// </summary>
@@ -249,5 +248,6 @@ namespace Microsoft.Build.UnitTests.OM.Collections
                 Assert.Equal(typeof(MSBuildNameIgnoreCaseComparer), dictionary2.Comparer.GetType());
             }
         }
+#endif
     }
 }

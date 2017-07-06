@@ -67,6 +67,7 @@ artifacts/
 *.tmp
 *.tmp_proj
 *.log
+*.binlog
 *.vspscc
 *.vssscc
 .builds
@@ -223,9 +224,9 @@ _Pvt_Extensions
 # Project-specific
 ApiPort/
 *.xlsx
-ref/
 Differences.txt
 Tools/
+Samples/MultiprocessBuild/PortableTask.dll
 
 # Visual Studio Code
 .vscode/

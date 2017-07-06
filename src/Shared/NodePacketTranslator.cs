@@ -6,18 +6,23 @@
 //-----------------------------------------------------------------------
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.IO;
 using System.Threading;
+#if FEATURE_BINARY_SERIALIZATION
 using System.Runtime.Serialization.Formatters.Binary;
+#endif
 using Microsoft.Build.Collections;
 using Microsoft.Build.Execution;
 using Microsoft.Build.Framework;
+using Microsoft.Build.Internal;
 using Microsoft.Build.Shared;
 using System.Globalization;
+using System.Reflection;
 
 namespace Microsoft.Build.BackEnd
 {
@@ -32,7 +37,6 @@ namespace Microsoft.Build.BackEnd
         /// <summary>
         /// Returns a read-only serializer.
         /// </summary>
-        /// <param name="stream">The stream containing data to deserialize.</param>
         /// <returns>The serializer.</returns>
         static internal INodePacketTranslator GetReadTranslator(Stream stream, SharedReadBuffer buffer)
         {
@@ -67,7 +71,6 @@ namespace Microsoft.Build.BackEnd
             /// <summary>
             /// Constructs a serializer from the specified stream, operating in the designated mode.
             /// </summary>
-            /// <param name="packetStream">The stream serving as the source or destination of data.</param>
             public NodePacketReadTranslator(Stream packetStream, SharedReadBuffer buffer)
             {
                 _packetStream = packetStream;
@@ -205,6 +208,23 @@ namespace Microsoft.Build.BackEnd
                 }
             }
 
+            /// <inheritdoc />
+            public void Translate(ref HashSet<string> set)
+            {
+                if (!TranslateNullable(set))
+                {
+                    return;
+                }
+
+                int count = _reader.ReadInt32();
+                set = new HashSet<string>();
+
+                for (int i = 0; i < count; i++)
+                {
+                    set.Add(_reader.ReadString());
+                }
+            }
+
             /// <summary>
             /// Translates a list of strings
             /// </summary>
@@ -233,13 +253,20 @@ namespace Microsoft.Build.BackEnd
             /// <typeparam name="T">TaskItem type</typeparam>
             public void Translate<T>(ref List<T> list, NodePacketValueFactory<T> factory) where T : INodePacketTranslatable
             {
+                IList<T> listAsInterface = list;
+                Translate(ref listAsInterface, factory, count => new List<T>(count));
+                list = (List<T>) listAsInterface;
+            }
+
+            public void Translate<T, L>(ref IList<T> list, NodePacketValueFactory<T> factory, NodePacketCollectionCreator<L> collectionFactory) where T : INodePacketTranslatable where L : IList<T>
+            {
                 if (!TranslateNullable(list))
                 {
                     return;
                 }
 
                 int count = _reader.ReadInt32();
-                list = new List<T>(count);
+                list = collectionFactory(count);
 
                 for (int i = 0; i < count; i++)
                 {
@@ -322,6 +349,7 @@ namespace Microsoft.Build.BackEnd
                 value = (T)Enum.ToObject(enumType, numericValue);
             }
 
+#if FEATURE_BINARY_SERIALIZATION
             /// <summary>
             /// Translates a value using the .Net binary formatter.
             /// </summary>
@@ -337,6 +365,30 @@ namespace Microsoft.Build.BackEnd
                 BinaryFormatter formatter = new BinaryFormatter();
                 value = (T)formatter.Deserialize(_packetStream);
             }
+#else
+            public void TranslateBuildEventArgs(ref BuildEventArgs value)
+            {
+                var serializedBuildEventArgs = new SerializedBuildEventArgs();
+                serializedBuildEventArgs.Translate(this);
+                value = SerializedBuildEventArgs.ToEventArgs(serializedBuildEventArgs);
+            }
+#endif
+
+            public void TranslateException(ref Exception value)
+            {
+#if FEATURE_BINARY_SERIALIZATION
+                TranslateDotNet<Exception>(ref value);
+#else
+                if (!TranslateNullable(value))
+                {
+                    return;
+                }
+                var serializedException = new SerializedException();
+                serializedException.Translate(this);
+                value = SerializedException.ToException(serializedException);
+#endif
+            }
+
 
             /// <summary>
             /// Translates an object implementing INodePacketTranslatable.
@@ -426,13 +478,24 @@ namespace Microsoft.Build.BackEnd
             /// <param name="comparer">The comparer used to instantiate the dictionary.</param>
             public void TranslateDictionary(ref Dictionary<string, string> dictionary, IEqualityComparer<string> comparer)
             {
+                IDictionary<string, string> copy = dictionary;
+
+                TranslateDictionary(
+                    ref copy,
+                    count => new Dictionary<string, string>(count, comparer));
+
+                dictionary = (Dictionary<string, string>) copy;
+            }
+
+            public void TranslateDictionary(ref IDictionary<string, string> dictionary, NodePacketCollectionCreator<IDictionary<string, string>> dictionaryCreator)
+            {
                 if (!TranslateNullable(dictionary))
                 {
                     return;
                 }
 
                 int count = _reader.ReadInt32();
-                dictionary = new Dictionary<string, string>(count, comparer);
+                dictionary = dictionaryCreator(count);
 
                 for (int i = 0; i < count; i++)
                 {
@@ -440,6 +503,30 @@ namespace Microsoft.Build.BackEnd
                     Translate(ref key);
                     string value = null;
                     Translate(ref value);
+                    dictionary[key] = value;
+                }
+            }
+
+            public void TranslateDictionary<K, V>(
+                ref IDictionary<K, V> dictionary,
+                Translator<K> keyTranslator,
+                Translator<V> valueTranslator,
+                NodePacketCollectionCreator<IDictionary<K, V>> dictionaryCreator)
+            {
+                if (!TranslateNullable(dictionary))
+                {
+                    return;
+                }
+
+                int count = _reader.ReadInt32();
+                dictionary = dictionaryCreator(count);
+
+                for (int i = 0; i < count; i++)
+                {
+                    K key = default(K);
+                    keyTranslator.Invoke(ref key, this);
+                    V value = default(V);
+                    valueTranslator(ref value, this);
                     dictionary[key] = value;
                 }
             }
@@ -509,7 +596,7 @@ namespace Microsoft.Build.BackEnd
             /// <param name="dictionary">The dictionary to be translated.</param>
             /// <param name="valueFactory">The factory used to instantiate values in the dictionary.</param>
             /// <param name="dictionaryCreator">The delegate used to instantiate the dictionary.</param>
-            public void TranslateDictionary<D, T>(ref D dictionary, NodePacketValueFactory<T> valueFactory, NodePacketDictionaryCreator<D> dictionaryCreator)
+            public void TranslateDictionary<D, T>(ref D dictionary, NodePacketValueFactory<T> valueFactory, NodePacketCollectionCreator<D> dictionaryCreator)
                 where D : IDictionary<string, T>
                 where T : class, INodePacketTranslatable
             {
@@ -698,6 +785,23 @@ namespace Microsoft.Build.BackEnd
                 }
             }
 
+            /// <inheritdoc />
+            public void Translate(ref HashSet<string> set)
+            {
+                if (!TranslateNullable(set))
+                {
+                    return;
+                }
+
+                int count = set.Count;
+                _writer.Write(count);
+
+                foreach (var item in set)
+                {
+                    _writer.Write(item);
+                }
+            }
+
             /// <summary>
             /// Translates a list of T where T implements INodePacketTranslateable
             /// </summary>
@@ -705,6 +809,31 @@ namespace Microsoft.Build.BackEnd
             /// <param name="factory">factory to create type T</param>
             /// <typeparam name="T">A TaskItemType</typeparam>
             public void Translate<T>(ref List<T> list, NodePacketValueFactory<T> factory) where T : INodePacketTranslatable
+            {
+                if (!TranslateNullable(list))
+                {
+                    return;
+                }
+
+                int count = list.Count;
+                _writer.Write(count);
+
+                for (int i = 0; i < count; i++)
+                {
+                    T value = list[i];
+                    Translate<T>(ref value, factory);
+                }
+            }
+
+            /// <summary>
+            /// Translates a list of T where T implements INodePacketTranslateable
+            /// </summary>
+            /// <param name="list">The list to be translated.</param>
+            /// <param name="factory">factory to create type T</param>
+            /// <param name="collectionFactory">factory to create the IList</param>
+            /// <typeparam name="T">A TaskItemType</typeparam>
+            /// <typeparam name="L">IList subtype</typeparam>
+            public void Translate<T, L>(ref IList<T> list, NodePacketValueFactory<T> factory, NodePacketCollectionCreator<L> collectionFactory) where T : INodePacketTranslatable where L : IList<T>
             {
                 if (!TranslateNullable(list))
                 {
@@ -780,11 +909,12 @@ namespace Microsoft.Build.BackEnd
             public void TranslateEnum<T>(ref T value, int numericValue)
             {
                 Type enumType = value.GetType();
-                ErrorUtilities.VerifyThrow(enumType.IsEnum, "Must pass an enum type.");
+                ErrorUtilities.VerifyThrow(enumType.GetTypeInfo().IsEnum, "Must pass an enum type.");
 
                 _writer.Write(numericValue);
             }
 
+#if FEATURE_BINARY_SERIALIZATION
             /// <summary>
             /// Translates a value using the .Net binary formatter.
             /// </summary>
@@ -799,6 +929,27 @@ namespace Microsoft.Build.BackEnd
 
                 BinaryFormatter formatter = new BinaryFormatter();
                 formatter.Serialize(_packetStream, value);
+            }
+#else
+            public void TranslateBuildEventArgs(ref BuildEventArgs value)
+            {
+                var serializedBuildEventArgs = SerializedBuildEventArgs.FromEventArgs(value);
+                serializedBuildEventArgs.Translate(this);
+            }
+#endif
+
+            public void TranslateException(ref Exception value)
+            {
+#if FEATURE_BINARY_SERIALIZATION
+                TranslateDotNet<Exception>(ref value);
+#else
+                if (!TranslateNullable(value))
+                {
+                    return;
+                }
+                var serializedException = SerializedException.FromException(value);
+                serializedException.Translate(this);
+#endif
             }
 
             /// <summary>
@@ -906,6 +1057,12 @@ namespace Microsoft.Build.BackEnd
             /// <param name="comparer">The comparer used to instantiate the dictionary.</param>
             public void TranslateDictionary(ref Dictionary<string, string> dictionary, IEqualityComparer<string> comparer)
             {
+                IDictionary<string, string> copy = dictionary;
+                TranslateDictionary(ref copy, (NodePacketCollectionCreator<IDictionary<string, string>>)null);
+            }
+
+            public void TranslateDictionary(ref IDictionary<string, string> dictionary, NodePacketCollectionCreator<IDictionary<string, string>> dictionaryCreator)
+            {
                 if (!TranslateNullable(dictionary))
                 {
                     return;
@@ -920,6 +1077,29 @@ namespace Microsoft.Build.BackEnd
                     Translate(ref key);
                     string value = pair.Value;
                     Translate(ref value);
+                }
+            }
+
+            public void TranslateDictionary<K, V>(
+                ref IDictionary<K, V> dictionary,
+                Translator<K> keyTranslator,
+                Translator<V> valueTranslator,
+                NodePacketCollectionCreator<IDictionary<K, V>> collectionCreator)
+            {
+                if (!TranslateNullable(dictionary))
+                {
+                    return;
+                }
+
+                int count = dictionary.Count;
+                _writer.Write(count);
+
+                foreach (KeyValuePair<K, V> pair in dictionary)
+                {
+                    K key = pair.Key;
+                    keyTranslator.Invoke(ref key, this);
+                    V value = pair.Value;
+                    valueTranslator.Invoke(ref value, this);
                 }
             }
 
@@ -986,7 +1166,7 @@ namespace Microsoft.Build.BackEnd
             /// <param name="dictionary">The dictionary to be translated.</param>
             /// <param name="valueFactory">The factory used to instantiate values in the dictionary.</param>
             /// <param name="dictionaryCreator">The delegate used to instantiate the dictionary.</param>
-            public void TranslateDictionary<D, T>(ref D dictionary, NodePacketValueFactory<T> valueFactory, NodePacketDictionaryCreator<D> dictionaryCreator)
+            public void TranslateDictionary<D, T>(ref D dictionary, NodePacketValueFactory<T> valueFactory, NodePacketCollectionCreator<D> dictionaryCreator)
                 where D : IDictionary<string, T>
                 where T : class, INodePacketTranslatable
             {
@@ -1020,5 +1200,416 @@ namespace Microsoft.Build.BackEnd
                 return haveRef;
             }
         }
-    }
+
+#if !FEATURE_BINARY_SERIALIZATION
+        public static bool IsSerializable(BuildEventArgs e)
+        {
+            var type = e.GetType();
+            return SerializedBuildEventArgs.GetConstructor(type) != null;
+        }        
+
+        private class SerializedField : INodePacketTranslatable
+        {
+            public FieldInfo Field;
+            public object FieldValue;
+
+            TypeLoader _typeLoader;
+
+            public SerializedField(TypeLoader typeLoader)
+            {
+                _typeLoader = typeLoader;
+            }
+
+            private static T ConvertOrDefault<T>(object value)
+            {
+                if (value == null)
+                {
+                    return default(T);
+                }
+                else
+                {
+                    return (T)value;
+                }
+            }
+
+            public void Translate(INodePacketTranslator translator)
+            {
+                AssemblyLoadInfo assemblyLoadInfo = null;
+                string declaringTypeFullName = null;
+                string fieldName = null;
+                if (translator.Mode == TranslationDirection.WriteToStream)
+                {
+                    assemblyLoadInfo = AssemblyLoadInfo.Create(null, AssemblyUtilities.GetAssemblyLocation(Field.DeclaringType.GetTypeInfo().Assembly));
+                    declaringTypeFullName = Field.DeclaringType.FullName;
+                    fieldName = Field.Name;
+                }
+
+                translator.Translate(ref assemblyLoadInfo, AssemblyLoadInfo.FactoryForTranslation);
+                translator.Translate(ref declaringTypeFullName);
+                translator.Translate(ref fieldName);
+
+                if (translator.Mode == TranslationDirection.ReadFromStream)
+                {
+                    LoadedType loadedDclaringType = _typeLoader.Load(declaringTypeFullName, assemblyLoadInfo);
+                    Type declaringType = loadedDclaringType.Type;
+                    Field = declaringType.GetField(fieldName, BindingFlags.DeclaredOnly | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                }
+
+                var fieldType = Field.FieldType;
+                if (fieldType.GetTypeInfo().IsEnum)
+                {
+                    fieldType = Enum.GetUnderlyingType(fieldType);
+                }
+
+                if (fieldType == typeof(Boolean))
+                {
+                    bool val = ConvertOrDefault<bool>(FieldValue);
+                    translator.Translate(ref val);
+                    FieldValue = val;
+                }
+                else if (fieldType == typeof(Char))
+                {
+                    ushort val = (ushort)ConvertOrDefault<char>(FieldValue);
+                    translator.Translate(ref val);
+                    FieldValue = (char)val;
+                }
+                else if (fieldType == typeof(SByte))
+                {
+                    byte val = unchecked((byte)ConvertOrDefault<SByte>(FieldValue));
+                    translator.Translate(ref val);
+                    FieldValue = unchecked((SByte)val);
+                }
+                else if (fieldType == typeof(Byte))
+                {
+                    byte val = ConvertOrDefault<byte>(FieldValue);
+                    translator.Translate(ref val);
+                    FieldValue = val;
+                }
+                else if (fieldType == typeof(Int16))
+                {
+                    Int16 val = ConvertOrDefault<Int16>(FieldValue);
+                    translator.Translate(ref val);
+                    FieldValue = val;
+                }
+                else if (fieldType == typeof(UInt16))
+                {
+                    UInt16 val = ConvertOrDefault<UInt16>(FieldValue);
+                    translator.Translate(ref val);
+                    FieldValue = val;
+                }
+                else if (fieldType == typeof(Int32))
+                {
+                    Int32 val = ConvertOrDefault<Int32>(FieldValue);
+                    translator.Translate(ref val);
+                    FieldValue = val;
+                }
+                else if (fieldType == typeof(UInt32))
+                {
+                    Int32 val = unchecked((Int32)ConvertOrDefault<UInt32>(FieldValue));
+                    translator.Translate(ref val);
+                    FieldValue = unchecked((UInt32)val);
+                }
+                //  Int64, UInt64, Single, Double, and Decimal not currently supported because INodePacketTranslator doesn't have Translate methods for these
+                //  We can add them or work around this if needed
+                else if (fieldType == typeof(DateTime))
+                {
+                    DateTime val = ConvertOrDefault<DateTime>(FieldValue);
+                    translator.Translate(ref val);
+                    FieldValue = val;
+                }
+                else if (fieldType == typeof(String))
+                {
+                    String val = (String)FieldValue;
+                    translator.Translate(ref val);
+                    FieldValue = val;
+                }
+                else if (fieldType == typeof(BuildEventContext))
+                {
+                    BuildEventContext val = (BuildEventContext)FieldValue;
+                    SerializedBuildEventArgs.TranslateBuildEventContext(translator, ref val);
+                    FieldValue = val;
+                }
+                else if (fieldType == typeof(IDictionary<string, string>))
+                {
+                    Dictionary<string, string> val = null;
+                    if (FieldValue is Dictionary<string, string>)
+                    {
+                        val = (Dictionary<string, string>)FieldValue;
+                    }
+                    else if (FieldValue != null)
+                    {
+                        val = new Dictionary<string, string>((IDictionary<string, string>)FieldValue, MSBuildNameIgnoreCaseComparer.Default);
+                    }
+                    translator.TranslateDictionary(ref val, StringComparer.OrdinalIgnoreCase);
+                    FieldValue = val;
+                }
+                else
+                {
+                    throw new NotSupportedException(Field.DeclaringType.FullName + "." + Field.Name + ": " + fieldType.ToString());
+                }
+            }
+        }
+
+
+        private static class FieldSerializer
+        {
+            public static List<SerializedField> SerializeFields(object obj, Func<FieldInfo, bool> fieldFilter)
+            {
+                List<SerializedField> ret = new List<SerializedField>();
+
+                for (Type currentType = obj.GetType(); currentType != typeof(object); currentType = currentType.GetTypeInfo().BaseType)
+                {
+                    var fields = currentType.GetFields(BindingFlags.DeclaredOnly | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).Where(fieldFilter);
+                    foreach (var field in fields)
+                    {
+                        //  The TypeLoader in SerializedField is only needed for deserialization, so pass in null here
+                        var serializedField = new SerializedField(null);
+                        serializedField.Field = field;
+                        serializedField.FieldValue = field.GetValue(obj);
+
+                        ret.Add(serializedField);
+                    }
+                }
+
+                return ret;
+            }
+
+            public static void DeserializeFields(object obj, List<SerializedField> serializedFields)
+            {
+                foreach (var serializedField in serializedFields)
+                {
+                    serializedField.Field.SetValue(obj, serializedField.FieldValue);
+                }
+            }
+        }
+
+        private class SerializedBuildEventArgs : INodePacketTranslatable
+        {
+            public AssemblyLoadInfo EventArgsAssembly;
+            public string EventArgsTypeFullName;
+
+            List<SerializedField> SerializedFields;
+
+            public static SerializedBuildEventArgs FromEventArgs(BuildEventArgs e)
+            {
+                var ret = new SerializedBuildEventArgs();
+                Type eventArgsType = e.GetType();
+
+                ret.EventArgsAssembly = AssemblyLoadInfo.Create(null, AssemblyUtilities.GetAssemblyLocation(eventArgsType.GetTypeInfo().Assembly));
+                ret.EventArgsTypeFullName = eventArgsType.FullName;
+
+                //  Force LazyFormattedBuildEventArgs message to be materialized so we don't have to serialize the parameter object array
+                string temp = e.Message;
+
+                ret.SerializedFields = FieldSerializer.SerializeFields(e, fi =>
+                {
+                    if (fi.DeclaringType == typeof(LazyFormattedBuildEventArgs))
+                    {
+                        return false;
+                    }
+                    if ((fi.DeclaringType == typeof(ProjectStartedEventArgs) || fi.DeclaringType == typeof(TargetFinishedEventArgs))
+                        && fi.FieldType == typeof(System.Collections.IEnumerable))
+                    {
+                        return false;
+                    }
+                    return true;
+                });
+
+                return ret;
+            }
+
+            public static BuildEventArgs ToEventArgs(SerializedBuildEventArgs serializedBuildEventArgs)
+            {
+                var typeLoader = new TypeLoader((t, o) => true);
+                LoadedType loadedEventArgsType = typeLoader.Load(serializedBuildEventArgs.EventArgsTypeFullName, serializedBuildEventArgs.EventArgsAssembly);
+                Type eventArgsType = loadedEventArgsType.Type;
+
+                ConstructorInfo constructor = GetConstructor(eventArgsType);
+                BuildEventArgs ret = (BuildEventArgs)constructor.Invoke(Array.Empty<object>());
+
+                FieldSerializer.DeserializeFields(ret, serializedBuildEventArgs.SerializedFields);
+
+                return ret;
+            }
+
+            public static void TranslateBuildEventContext(INodePacketTranslator translator, ref BuildEventContext context)
+            {
+                if (translator.TranslateNullable(context))
+                {
+                    int nodeId = 0;
+                    int targetId = 0;
+                    int projectContextId = 0;
+                    int taskId = 0;
+                    int projectInstanceId = 0;
+                    int submissionId = 0;
+
+                    if (translator.Mode == TranslationDirection.WriteToStream)
+                    {
+                        nodeId = context.NodeId;
+                        targetId = context.TargetId;
+                        projectContextId = context.ProjectContextId;
+                        taskId = context.TaskId;
+                        projectInstanceId = context.ProjectInstanceId;
+                        submissionId = context.SubmissionId;
+                    }
+
+                    translator.Translate(ref nodeId);
+                    translator.Translate(ref targetId);
+                    translator.Translate(ref projectContextId);
+                    translator.Translate(ref taskId);
+                    translator.Translate(ref projectInstanceId);
+                    translator.Translate(ref submissionId);
+
+                    if (translator.Mode == TranslationDirection.ReadFromStream)
+                    {
+                        context = new BuildEventContext(submissionId, nodeId, projectInstanceId, projectContextId, targetId, taskId);
+                    }
+                }
+            }
+
+            public static ConstructorInfo GetConstructor(Type type)
+            {
+                var constructors = type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                return constructors.FirstOrDefault(ci => ci.GetParameters().Length == 0);
+            }
+
+            public void Translate(INodePacketTranslator translator)
+            {
+                var typeLoader = new TypeLoader((t, o) => true);
+                translator.Translate(ref EventArgsAssembly, AssemblyLoadInfo.FactoryForTranslation);
+                translator.Translate(ref EventArgsTypeFullName);
+                translator.Translate(ref SerializedFields, t =>
+                {
+                    var ret = new SerializedField(typeLoader);
+                    ret.Translate(t);
+                    return ret;
+                });
+            }
+        }
+
+        private class SerializedException : INodePacketTranslatable
+        {
+            public AssemblyLoadInfo ExceptionAssembly;
+            public string TypeFullName;
+            public string Message;
+            public string StackTrace;
+            public int HResult;
+            public SerializedException InnerException;
+            public string ExceptionToString;
+
+            private static FieldInfo _exceptionStackTraceStringField;
+            private static FieldInfo _exceptionHResultField;
+
+            static SerializedException()
+            {
+                _exceptionStackTraceStringField = typeof(Exception).GetField("_stackTraceString", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                _exceptionHResultField = typeof(Exception).GetField("_HResult", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            }
+
+            public static SerializedException FromException(Exception ex)
+            {
+                var ret = new SerializedException();
+                Type exceptionType = ex.GetType();
+                ret.ExceptionAssembly = AssemblyLoadInfo.Create(null, AssemblyUtilities.GetAssemblyLocation(exceptionType.GetTypeInfo().Assembly));
+                ret.TypeFullName = exceptionType.FullName;
+                ret.Message = ex.Message;
+                ret.StackTrace = ex.StackTrace;
+                ret.HResult = ex.HResult;
+
+                if (ex.InnerException != null)
+                {
+                    ret.InnerException = FromException(ex.InnerException);
+                }
+
+                ret.ExceptionToString = ex.ToString();
+
+                return ret;
+            }
+
+            public static Exception ToException(SerializedException serializedException)
+            {
+                Exception innerException = null;
+                if (serializedException.InnerException != null)
+                {
+                    innerException = ToException(serializedException.InnerException);
+                }
+
+                ConstructorInfo constructor = null;
+                object[] constructorParameters = null;
+
+                try
+                {
+                    var typeLoader = new TypeLoader((t, o) => true);
+
+                    LoadedType loadedExceptionType = typeLoader.Load(serializedException.TypeFullName, serializedException.ExceptionAssembly);
+                    Type exceptionType = loadedExceptionType.Type;
+
+                    Type[] parameterTypes;
+                    if (innerException == null)
+                    {
+                        parameterTypes = new[] { typeof(string) };
+                        constructorParameters = new object[] { serializedException.Message };
+                    }
+                    else
+                    {
+                        parameterTypes = new[] { typeof(string), typeof(Exception) };
+                        constructorParameters = new object[] { serializedException.Message, innerException };
+                    }
+
+                    constructor = exceptionType.GetConstructor(parameterTypes);
+                }
+                catch (FileLoadException e)
+                {
+                    CommunicationsUtilities.Trace($"Exception while attempting to deserialize an exception of type \"{serializedException.TypeFullName}\". Could not load from \"{serializedException.ExceptionAssembly.AssemblyLocation}\": {e}");
+                }
+
+                if (constructor == null)
+                {
+                    CommunicationsUtilities.Trace($"Could not find a constructor to deserialize an exception of type \"{serializedException.TypeFullName}\". Falling back to an exception that will look the same.");
+                    return new FormattedException(serializedException.ExceptionToString);
+                }
+
+                Exception ret = (Exception) constructor.Invoke(constructorParameters);
+
+                if (_exceptionStackTraceStringField != null)
+                {
+                    _exceptionStackTraceStringField.SetValue(ret, serializedException.StackTrace);
+                }
+
+                if (_exceptionHResultField != null)
+                {
+                    _exceptionHResultField.SetValue(ret, serializedException.HResult);
+                }
+
+                return ret;
+            }
+
+            public void Translate(INodePacketTranslator translator)
+            {
+                translator.Translate(ref ExceptionAssembly, AssemblyLoadInfo.FactoryForTranslation);
+                translator.Translate(ref TypeFullName);
+                translator.Translate(ref Message);
+                translator.Translate(ref StackTrace);
+                translator.Translate(ref HResult);
+                translator.Translate(ref InnerException);
+                translator.Translate(ref ExceptionToString);
+            }
+
+            private class FormattedException : Exception
+            {
+                string _formattedException;
+
+                public FormattedException(string formattedException)
+                {
+                    _formattedException = formattedException;
+                }
+
+                public override string ToString()
+                {
+                    return _formattedException;
+                }
+            }
+        }
+#endif
+                }
 }

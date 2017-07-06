@@ -9,8 +9,9 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Runtime.InteropServices;
+#if FEATURE_BINARY_SERIALIZATION
 using System.Runtime.Serialization;
+#endif
 using Microsoft.Build.Shared;
 using Microsoft.Build.Internal;
 
@@ -39,7 +40,9 @@ namespace Microsoft.Build.Collections
     /// This class must be serializable as it is used for metadata passed to tasks, which may
     /// be run in a separate appdomain.
     /// </comment>
+#if FEATURE_BINARY_SERIALIZATION
     [Serializable]
+#endif
     internal class CopyOnWriteDictionary<K, V> : IDictionary<K, V>, IDictionary where V : class
     {
 #if DEBUG
@@ -101,6 +104,7 @@ namespace Microsoft.Build.Collections
             this.keyComparer = keyComparer;
         }
 
+#if FEATURE_BINARY_SERIALIZATION
         /// <summary>
         /// Serialization constructor, for crossing appdomain boundaries
         /// </summary>
@@ -109,6 +113,7 @@ namespace Microsoft.Build.Collections
         protected CopyOnWriteDictionary(SerializationInfo info, StreamingContext context)
         {
         }
+#endif
 
         /// <summary>
         /// Cloning constructor. Defers the actual clone.
@@ -123,6 +128,14 @@ namespace Microsoft.Build.Collections
                 {
                     backing.AddRef();
                 }
+            }
+        }
+
+        public CopyOnWriteDictionary(IDictionary<K, V> dictionary)
+        {
+            foreach (var pair in dictionary)
+            {
+                this[pair.Key] = pair.Value;
             }
         }
 
@@ -546,7 +559,9 @@ namespace Microsoft.Build.Collections
         /// </summary>
         /// <typeparam name="K1">The key type.</typeparam>
         /// <typeparam name="V1">The value type.</typeparam>
+#if FEATURE_BINARY_SERIALIZATION
         [Serializable]
+#endif
         private class CopyOnWriteBackingDictionary<K1, V1> : HybridDictionary<K1, V1> where V1 : class
         {
             /// <summary>
@@ -559,7 +574,9 @@ namespace Microsoft.Build.Collections
             /// The reference count. 
             /// </summary>
             [SuppressMessage("Microsoft.Performance", "CA1823:AvoidUnusedPrivateFields", Justification = "Error in code analysis.")]
+#if FEATURE_BINARY_SERIALIZATION
             [NonSerialized]
+#endif
             private int _refCount = 1;
 
             /// <summary>
@@ -571,6 +588,7 @@ namespace Microsoft.Build.Collections
                 // Tracing.Record("New COWBD");
             }
 
+#if FEATURE_BINARY_SERIALIZATION
             /// <summary>
             /// Serialization constructor, for crossing appdomain boundaries
             /// </summary>
@@ -578,6 +596,7 @@ namespace Microsoft.Build.Collections
                 : base(info, context)
             {
             }
+#endif
 
             /// <summary>
             /// Empty constructor.
@@ -641,6 +660,7 @@ namespace Microsoft.Build.Collections
                 return ++_refCount;
             }
 
+#if FEATURE_BINARY_SERIALIZATION
             /// <summary>
             /// Deserialization does not call any constructors, not even
             /// the parameterless constructor. Therefore since we do not serialize
@@ -651,6 +671,7 @@ namespace Microsoft.Build.Collections
             {
                 _refCount = 1;
             }
+#endif
         }
     }
 }

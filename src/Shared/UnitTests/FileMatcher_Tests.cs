@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
+// Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System;
@@ -8,7 +8,6 @@ using System.Reflection;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
 using System.Text.RegularExpressions;
 
 using Microsoft.Build.Framework;
@@ -21,9 +20,9 @@ namespace Microsoft.Build.UnitTests
     {
         /*
          * Method:  GetFileSystemEntries
-         * 
+         *
          * Simulate Directories.GetFileSystemEntries where file names are short.
-         * 
+         *
          */
         private static string[] GetFileSystemEntries(FileMatcher.FileSystemEntity entityType, string path, string pattern, string projectDirectory, bool stripProjectDirectory)
         {
@@ -83,16 +82,16 @@ namespace Microsoft.Build.UnitTests
         {
             MatchDriver
             (
-                @"Source\**",
+                "Source" + Path.DirectorySeparatorChar + "**",
                 new string[]  // Files that exist and should match.
                 {
-                    @"Source\Bart.txt",
-                    @"Source\Sub\Homer.txt",
+                    "Source" + Path.DirectorySeparatorChar + "Bart.txt",
+                    "Source" + Path.DirectorySeparatorChar + "Sub" + Path.DirectorySeparatorChar + "Homer.txt",
                 },
                 new string[]  // Files that exist and should not match.
                 {
-                    @"Destination\Bart.txt",
-                    @"Destination\Sub\Homer.txt",
+                    "Destination" + Path.DirectorySeparatorChar + "Bart.txt",
+                    "Destination" + Path.DirectorySeparatorChar + "Sub" + Path.DirectorySeparatorChar + "Homer.txt",
                 },
                 null
             );
@@ -100,9 +99,9 @@ namespace Microsoft.Build.UnitTests
 
         /// <summary>
         /// This pattern should *not* recurse indefinitely since there is no '**' in the pattern:
-        /// 
+        ///
         ///        c:\?emp\foo
-        /// 
+        ///
         /// </summary>
         [Fact]
         public void Regress162390()
@@ -122,13 +121,18 @@ namespace Microsoft.Build.UnitTests
 
         /*
         * Method:  GetLongFileNameForShortLocalPath
-        * 
+        *
         * Convert a short local path to a long path.
-        * 
+        *
         */
         [Fact]
         public void GetLongFileNameForShortLocalPath()
         {
+            if (!NativeMethodsShared.IsWindows)
+            {
+                return; // "Short names are for Windows only"
+            }
+
             string longPath = FileMatcher.GetLongPathName
             (
                 @"D:\LONGDI~1\LONGSU~1\LONGFI~1.TXT",
@@ -140,9 +144,9 @@ namespace Microsoft.Build.UnitTests
 
         /*
         * Method:  GetLongFileNameForLongLocalPath
-        * 
+        *
         * Convert a long local path to a long path (nop).
-        * 
+        *
         */
         [Fact]
         public void GetLongFileNameForLongLocalPath()
@@ -158,13 +162,18 @@ namespace Microsoft.Build.UnitTests
 
         /*
         * Method:  GetLongFileNameForShortUncPath
-        * 
+        *
         * Convert a short UNC path to a long path.
-        * 
+        *
         */
         [Fact]
         public void GetLongFileNameForShortUncPath()
         {
+            if (!NativeMethodsShared.IsWindows)
+            {
+                return; // "Short names are for Windows only"
+            }
+
             string longPath = FileMatcher.GetLongPathName
             (
                 @"\\server\share\LONGDI~1\LONGSU~1\LONGFI~1.TXT",
@@ -176,9 +185,9 @@ namespace Microsoft.Build.UnitTests
 
         /*
         * Method:  GetLongFileNameForLongUncPath
-        * 
+        *
         * Convert a long UNC path to a long path (nop)
-        * 
+        *
         */
         [Fact]
         public void GetLongFileNameForLongUncPath()
@@ -194,13 +203,18 @@ namespace Microsoft.Build.UnitTests
 
         /*
         * Method:  GetLongFileNameForRelativePath
-        * 
+        *
         * Convert a short relative path to a long path
-        * 
+        *
         */
         [Fact]
         public void GetLongFileNameForRelativePath()
         {
+            if (!NativeMethodsShared.IsWindows)
+            {
+                return; // "Short names are for Windows only"
+            }
+
             string longPath = FileMatcher.GetLongPathName
             (
                 @"LONGDI~1\LONGSU~1\LONGFI~1.TXT",
@@ -212,13 +226,18 @@ namespace Microsoft.Build.UnitTests
 
         /*
         * Method:  GetLongFileNameForRelativePathPreservesTrailingSlash
-        * 
+        *
         * Convert a short relative path with a trailing backslash to a long path
-        * 
+        *
         */
         [Fact]
         public void GetLongFileNameForRelativePathPreservesTrailingSlash()
         {
+            if (!NativeMethodsShared.IsWindows)
+            {
+                return; // "Short names are for Windows only"
+            }
+
             string longPath = FileMatcher.GetLongPathName
             (
                 @"LONGDI~1\LONGSU~1\",
@@ -230,13 +249,18 @@ namespace Microsoft.Build.UnitTests
 
         /*
         * Method:  GetLongFileNameForRelativePathPreservesExtraSlashes
-        * 
+        *
         * Convert a short relative path with doubled embedded backslashes to a long path
-        * 
+        *
         */
         [Fact]
         public void GetLongFileNameForRelativePathPreservesExtraSlashes()
         {
+            if (!NativeMethodsShared.IsWindows)
+            {
+                return; // "Short names are for Windows only"
+            }
+
             string longPath = FileMatcher.GetLongPathName
             (
                 @"LONGDI~1\\LONGSU~1\\",
@@ -248,13 +272,18 @@ namespace Microsoft.Build.UnitTests
 
         /*
         * Method:  GetLongFileNameForMixedLongAndShort
-        * 
+        *
         * Only part of the path might be short.
-        * 
+        *
         */
         [Fact]
         public void GetLongFileNameForMixedLongAndShort()
         {
+            if (!NativeMethodsShared.IsWindows)
+            {
+                return; // "Short names are for Windows only"
+            }
+
             string longPath = FileMatcher.GetLongPathName
             (
                 @"c:\apple\banana\tomato\pomegr~1\orange\",
@@ -266,14 +295,19 @@ namespace Microsoft.Build.UnitTests
 
         /*
         * Method:  GetLongFileNameWherePartOfThePathDoesntExist
-        * 
+        *
         * Part of the path may not exist. In this case, we treat the non-existent parts
         * as if they were already a long file name.
-        * 
+        *
         */
         [Fact]
         public void GetLongFileNameWherePartOfThePathDoesntExist()
         {
+            if (!NativeMethodsShared.IsWindows)
+            {
+                return; // "Short names are for Windows only"
+            }
+
             string longPath = FileMatcher.GetLongPathName
             (
                 @"c:\apple\banana\tomato\pomegr~1\orange\chocol~1\vanila~1",
@@ -313,26 +347,33 @@ namespace Microsoft.Build.UnitTests
         [Fact]
         public void DotForCurrentDirectory()
         {
-            ValidateFileMatch(".\\file.txt", ".\\File.txt", false);
-            ValidateNoFileMatch(".\\file.txt", ".\\File.bin", false);
+            ValidateFileMatch(Path.Combine(".", "File.txt"), Path.Combine(".", "File.txt"), false);
+            ValidateNoFileMatch(Path.Combine(".", "File.txt"), Path.Combine(".", "File.bin"), false);
         }
 
         [Fact]
         public void DotDotForParentDirectory()
         {
-            ValidateFileMatch("..\\..\\*.*", "..\\..\\File.txt", false);
-            ValidateFileMatch("..\\..\\*.*", "..\\..\\File", false);
-            ValidateNoFileMatch("..\\..\\*.*", "..\\..\\dir1\\dir2\\File.txt", false);
-            ValidateNoFileMatch("..\\..\\*.*", "..\\..\\dir1\\dir2\\File", false);
+            ValidateFileMatch(Path.Combine("..", "..", "*.*"), Path.Combine("..", "..", "File.txt"), false);
+            if (NativeMethodsShared.IsWindows)
+            {
+                // On Linux *. * does not pick up files with no extension
+                ValidateFileMatch(Path.Combine("..", "..", "*.*"), Path.Combine("..", "..", "File"), false);
+            }
+            ValidateNoFileMatch(Path.Combine("..", "..", "*.*"), Path.Combine(new [] {"..", "..", "dir1", "dir2", "File.txt"}), false);
+            ValidateNoFileMatch(Path.Combine("..", "..", "*.*"), Path.Combine(new [] {"..", "..", "dir1", "dir2", "File"}), false);
         }
 
         [Fact]
         public void ReduceDoubleSlashesBaseline()
         {
             // Baseline
-            ValidateFileMatch("f:\\dir1\\dir2\\file.txt", "f:\\dir1\\dir2\\file.txt", false);
-            ValidateFileMatch("**\\*.cs", "dir1\\dir2\\file.cs", true);
-            ValidateFileMatch("**\\*.cs", "file.cs", true);
+            ValidateFileMatch(
+                NativeMethodsShared.IsWindows ? "f:\\dir1\\dir2\\file.txt" : "/dir1/dir2/file.txt",
+                NativeMethodsShared.IsWindows ? "f:\\dir1\\dir2\\file.txt" : "/dir1/dir2/file.txt",
+                false);
+            ValidateFileMatch(Path.Combine("**", "*.cs"), Path.Combine("dir1", "dir2", "file.cs"), true);
+            ValidateFileMatch(Path.Combine("**", "*.cs"), "file.cs", true);
         }
 
 
@@ -377,7 +418,7 @@ namespace Microsoft.Build.UnitTests
         [Fact]
         public void RecursiveDirRecursive()
         {
-            // Check that a wildcardpath of **\x\**\ matches correctly since, \**\ is a 
+            // Check that a wildcardpath of **\x\**\ matches correctly since, \**\ is a
             // separate code path.
             ValidateFileMatch(@"c:\foo\**\x\**\*.*", @"c:\foo\x\file.txt", true);
             ValidateFileMatch(@"c:\foo\**\x\**\*.*", @"c:\foo\y\x\file.txt", true);
@@ -403,7 +444,7 @@ namespace Microsoft.Build.UnitTests
         {
             // However, we don't wtool this to match,
             ValidateNoFileMatch(@"C:\foo\**", @"C:\foo", true);
-            // becase we don't know whether foo is a file or folder.
+            // because we don't know whether foo is a file or folder.
 
             // Same for UNC
             ValidateNoFileMatch
@@ -496,7 +537,7 @@ namespace Microsoft.Build.UnitTests
         [Fact]
         public void MultipleStarStar()
         {
-            // Multiple-** matches 
+            // Multiple-** matches
             ValidateFileMatch("c:\\**\\user\\**\\*.*", "c:\\Documents and Settings\\user\\NTUSER.DAT", true);
             ValidateNoFileMatch("c:\\**\\user1\\**\\*.*", "c:\\Documents and Settings\\user\\NTUSER.DAT", true);
             ValidateFileMatch("c:\\**\\user\\**\\*.*", "c://Documents and Settings\\user\\NTUSER.DAT", true);
@@ -526,6 +567,7 @@ namespace Microsoft.Build.UnitTests
         }
 
         [Fact]
+        [PlatformSpecific(Xunit.PlatformID.Windows)] // Nothing's too long for Unix
         public void IllegalTooLongPath()
         {
             string longString = new string('X', 500) + "*"; // need a wildcard to do anything
@@ -533,7 +575,7 @@ namespace Microsoft.Build.UnitTests
 
             Assert.Equal(longString, result[0]); // Does not throw
 
-            // Not checking that GetFileSpecInfo returns the illegal-path flag,
+            // Not checking that GetFileSpecMatchInfo returns the illegal-path flag,
             // not certain that won't break something; this fix is merely to avoid a crash.
         }
 
@@ -577,8 +619,8 @@ namespace Microsoft.Build.UnitTests
             }
             finally
             {
-                Directory.Delete(workingPathSubfolder);
-                Directory.Delete(workingPath);
+                FileUtilities.DeleteWithoutTrailingBackslash(workingPathSubfolder);
+                FileUtilities.DeleteWithoutTrailingBackslash(workingPath);
             }
         }
 
@@ -600,7 +642,7 @@ namespace Microsoft.Build.UnitTests
             finally
             {
                 File.Delete(fileName);
-                Directory.Delete(workingPath);
+                FileUtilities.DeleteWithoutTrailingBackslash(workingPath);
             }
 
             string result = String.Join(", ", files);
@@ -629,7 +671,7 @@ namespace Microsoft.Build.UnitTests
             }
             finally
             {
-                Directory.Delete(workingPath, true);
+                FileUtilities.DeleteWithoutTrailingBackslash(workingPath, true);
             }
 
             string result = String.Join(", ", files);
@@ -647,45 +689,48 @@ namespace Microsoft.Build.UnitTests
         [Fact]
         public void RemoveProjectDirectory()
         {
-            string[] strings = new string[1] { "c:\\1.file" };
-            FileMatcher.RemoveProjectDirectory(strings, "c:\\");
+            string[] strings = new string[1] { NativeMethodsShared.IsWindows ? "c:\\1.file" : "/1.file" };
+            FileMatcher.RemoveProjectDirectory(strings, NativeMethodsShared.IsWindows ? "c:\\" : "/");
             Assert.Equal(strings[0], "1.file");
 
-            strings = new string[1] { "c:\\directory\\1.file" };
-            FileMatcher.RemoveProjectDirectory(strings, "c:\\");
-            Assert.Equal(strings[0], "directory\\1.file");
+            strings = new string[1] { NativeMethodsShared.IsWindows ? "c:\\directory\\1.file" : "/directory/1.file"};
+            FileMatcher.RemoveProjectDirectory(strings, NativeMethodsShared.IsWindows ? "c:\\" : "/");
+            Assert.Equal(strings[0], NativeMethodsShared.IsWindows ? "directory\\1.file" : "directory/1.file");
 
-            strings = new string[1] { "c:\\directory\\1.file" };
-            FileMatcher.RemoveProjectDirectory(strings, "c:\\directory");
+            strings = new string[1] { NativeMethodsShared.IsWindows ? "c:\\directory\\1.file" : "/directory/1.file" };
+            FileMatcher.RemoveProjectDirectory(strings, NativeMethodsShared.IsWindows ? "c:\\directory" : "/directory");
             Assert.Equal(strings[0], "1.file");
 
-            strings = new string[1] { "c:\\1.file" };
-            FileMatcher.RemoveProjectDirectory(strings, "c:\\directory");
-            Assert.Equal(strings[0], "c:\\1.file");
+            strings = new string[1] { NativeMethodsShared.IsWindows ? "c:\\1.file" : "/1.file" };
+            FileMatcher.RemoveProjectDirectory(strings, NativeMethodsShared.IsWindows ? "c:\\directory" : "/directory" );
+            Assert.Equal(strings[0], NativeMethodsShared.IsWindows ? "c:\\1.file" : "/1.file");
 
-            strings = new string[1] { "c:\\directorymorechars\\1.file" };
-            FileMatcher.RemoveProjectDirectory(strings, "c:\\directory");
-            Assert.Equal(strings[0], "c:\\directorymorechars\\1.file");
+            strings = new string[1] { NativeMethodsShared.IsWindows ? "c:\\directorymorechars\\1.file" : "/directorymorechars/1.file" };
+            FileMatcher.RemoveProjectDirectory(strings, NativeMethodsShared.IsWindows ? "c:\\directory" : "/directory");
+            Assert.Equal(strings[0], NativeMethodsShared.IsWindows ? "c:\\directorymorechars\\1.file" : "/directorymorechars/1.file" );
 
-            strings = new string[1] { "\\Machine\\1.file" };
-            FileMatcher.RemoveProjectDirectory(strings, "\\Machine");
-            Assert.Equal(strings[0], "1.file");
+            if (NativeMethodsShared.IsWindows)
+            {
+                strings = new string[1] { "\\Machine\\1.file" };
+                FileMatcher.RemoveProjectDirectory(strings, "\\Machine");
+                Assert.Equal(strings[0], "1.file");
 
-            strings = new string[1] { "\\Machine\\directory\\1.file" };
-            FileMatcher.RemoveProjectDirectory(strings, "\\Machine");
-            Assert.Equal(strings[0], "directory\\1.file");
+                strings = new string[1] { "\\Machine\\directory\\1.file" };
+                FileMatcher.RemoveProjectDirectory(strings, "\\Machine");
+                Assert.Equal(strings[0], "directory\\1.file");
 
-            strings = new string[1] { "\\Machine\\directory\\1.file" };
-            FileMatcher.RemoveProjectDirectory(strings, "\\Machine\\directory");
-            Assert.Equal(strings[0], "1.file");
+                strings = new string[1] { "\\Machine\\directory\\1.file" };
+                FileMatcher.RemoveProjectDirectory(strings, "\\Machine\\directory");
+                Assert.Equal(strings[0], "1.file");
 
-            strings = new string[1] { "\\Machine\\1.file" };
-            FileMatcher.RemoveProjectDirectory(strings, "\\Machine\\directory");
-            Assert.Equal(strings[0], "\\Machine\\1.file");
+                strings = new string[1] { "\\Machine\\1.file" };
+                FileMatcher.RemoveProjectDirectory(strings, "\\Machine\\directory");
+                Assert.Equal(strings[0], "\\Machine\\1.file");
 
-            strings = new string[1] { "\\Machine\\directorymorechars\\1.file" };
-            FileMatcher.RemoveProjectDirectory(strings, "\\Machine\\directory");
-            Assert.Equal(strings[0], "\\Machine\\directorymorechars\\1.file");
+                strings = new string[1] { "\\Machine\\directorymorechars\\1.file" };
+                FileMatcher.RemoveProjectDirectory(strings, "\\Machine\\directory");
+                Assert.Equal(strings[0], "\\Machine\\directorymorechars\\1.file");
+            }
         }
 
         [Theory]
@@ -1161,7 +1206,10 @@ namespace Microsoft.Build.UnitTests
                 }
 
                 string normalized = path.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
-
+                if (Path.DirectorySeparatorChar != '\\')
+                {
+                    normalized = path.Replace("\\", Path.DirectorySeparatorChar.ToString());
+                }
                 // Replace leading UNC.
                 if (normalized.StartsWith(@"\\"))
                 {
@@ -1169,20 +1217,21 @@ namespace Microsoft.Build.UnitTests
                 }
 
                 // Preserve parent-directory markers.
-                normalized = normalized.Replace(@"..\", "<:PARENT:>");
+                normalized = normalized.Replace(@".." + Path.DirectorySeparatorChar, "<:PARENT:>");
 
 
                 // Just get rid of doubles enough to satisfy our test cases.
-                normalized = normalized.Replace(@"\\", @"\");
-                normalized = normalized.Replace(@"\\", @"\");
-                normalized = normalized.Replace(@"\\", @"\");
+                string doubleSeparator = Path.DirectorySeparatorChar.ToString() + Path.DirectorySeparatorChar.ToString();
+                normalized = normalized.Replace(doubleSeparator, Path.DirectorySeparatorChar.ToString());
+                normalized = normalized.Replace(doubleSeparator, Path.DirectorySeparatorChar.ToString());
+                normalized = normalized.Replace(doubleSeparator, Path.DirectorySeparatorChar.ToString());
 
                 // Strip any .\
-                normalized = normalized.Replace(@".\", "");
+                normalized = normalized.Replace(@"." + Path.DirectorySeparatorChar, "");
 
                 // Put back the preserved markers.
                 normalized = normalized.Replace("<:UNC:>", @"\\");
-                normalized = normalized.Replace("<:PARENT:>", @"..\");
+                normalized = normalized.Replace("<:PARENT:>", @".." + Path.DirectorySeparatorChar);
 
                 return normalized;
             }
@@ -1276,12 +1325,12 @@ namespace Microsoft.Build.UnitTests
 
         /// <summary>
         /// A general purpose method used to:
-        /// 
+        ///
         /// (1) Simulate a file system.
         /// (2) Check whether all matchingFiles where hit by the filespec pattern.
         /// (3) Check whether all nonmatchingFiles were *not* hit by the filespec pattern.
         /// (4) Check whether all untouchableFiles were not even requested (usually for perf reasons).
-        /// 
+        ///
         /// These can be used in various combinations to test the filematcher framework.
         /// </summary>
         /// <param name="filespec">A FileMatcher filespec, possibly with wildcards.</param>
@@ -1302,7 +1351,7 @@ namespace Microsoft.Build.UnitTests
         /// <summary>
         /// Runs the test 4 times with the include and exclude using either forward or backward slashes.
         /// Expects the <param name="filespec"></param> and <param name="excludeFileSpects"></param> to contain only backward slashes
-        /// 
+        ///
         /// To preserve current MSBuild behaviour, it only does so if the path is not rooted. Rooted paths do not support forward slashes (as observed on MSBuild 14.0.25420.1)
         /// </summary>
         private static void MatchDriverWithDifferentSlashes
@@ -1425,6 +1474,10 @@ namespace Microsoft.Build.UnitTests
                 new FileMatcher.GetFileSystemEntries(GetFileSystemEntriesLoopBack)
             );
 
+            expectedFixedDirectoryPart = FileUtilities.FixFilePath(expectedFixedDirectoryPart);
+            expectedWildcardDirectoryPart = FileUtilities.FixFilePath(expectedWildcardDirectoryPart);
+            expectedFilenamePart = FileUtilities.FixFilePath(expectedFilenamePart);
+
             if
                 (
                 expectedWildcardDirectoryPart != wildcardDirectoryPart
@@ -1520,7 +1573,7 @@ namespace Microsoft.Build.UnitTests
             Regex regexFileMatch;
             bool needsRecursion;
             bool isLegalFileSpec;
-            FileMatcher.GetFileSpecInfo
+            FileMatcher.GetFileSpecInfoWithRegexObject
             (
                 filespec,
                 out regexFileMatch,

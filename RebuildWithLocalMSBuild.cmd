@@ -6,33 +6,63 @@
 @echo off
 setlocal
 
-:: Check prerequisites
-if not defined VS140COMNTOOLS (
-    echo Error: This script should be run from a Visual Studio 2015 Command Prompt.
-    echo        Please see https://github.com/Microsoft/msbuild/wiki/Building-Testing-and-Debugging for build instructions.
-    exit /b 1
-)
+:: Restore build tools
+call %~dp0init-tools.cmd
 
-:: Build and create bootstrapped MSBuild to bin\bootstrap
-:: Note: This will always build with Platform=x86
-set MSBUILDLOGPATH=%~dp0msbuild_bootstrap.log
-call "%~dp0CreateBootstrappedMSBuild.cmd" %*
+set RUNTIME_HOST=%~dp0Tools\dotnetcli\dotnet.exe
+
+:: build MSBuild with the MSBuild binaries from BuildTools
+set MSBUILDLOGPATH=%~dp0msbuild_bootstrap_build.log
+set MSBUILD_CUSTOM_PATH=%~dp0Tools\MSBuild.exe
+
+echo.
+echo ** Rebuilding MSBuild with binaries from BuildTools
+
+call "%~dp0build.cmd" /t:Rebuild /p:Configuration=Debug-NetCore /p:"OverrideToolHost=%RUNTIME_HOST%"
+
 if %ERRORLEVEL% NEQ 0 (
     echo.
-    echo CreateBootstrappedMSBuild.cmd failed with errorlevel %ERRORLEVEL% 1>&2
+    echo Bootstrap build failed with errorlevel %ERRORLEVEL% 1>&2
     goto :error
 )
 
-:: Rebuild with bootstrapped msbuild
-set MSBUILDLOGPATH=%~dp0msbuild_local.log
-set MSBUILDCUSTOMPATH="%~dp0\bin\Bootstrap\15.0\Bin\MSBuild.exe"
-"%~dp0build.cmd" /t:RebuildAndTest /p:BootstrappedMSBuild=true %*
+:: Move initial build to bootstrap directory
+
+:: Kill Roslyn, which may have handles open to files we want
+taskkill /F /IM vbcscompiler.exe
+
+set MSBUILDLOGPATH=%~dp0msbuild_move_bootstrap.log
+set MSBUILD_ARGS=/verbosity:minimal targets\BootStrapMSbuild.proj /p:Configuration=Debug-NetCore
+
+echo.
+echo ** Moving bootstrapped MSBuild to the bootstrap folder
+
+call "%~dp0build.cmd"
+set MSBUILD_ARGS=
+
 if %ERRORLEVEL% NEQ 0 (
     echo.
     echo build.cmd with bootstrapped MSBuild failed with errorlevel %ERRORLEVEL% 1>&2
     goto :error
 )
 
+:: Rebuild with bootstrapped msbuild
+set MSBUILDLOGPATH=%~dp0msbuild_local_build.log
+set RUNTIME_HOST="%~dp0bin\Bootstrap\CoreRun.exe"
+set MSBUILD_CUSTOM_PATH="%~dp0bin\Bootstrap\MSBuild.exe"
+
+echo.
+echo ** Rebuilding MSBuild with locally built binaries
+
+call "%~dp0build.cmd" /t:RebuildAndTest /p:Configuration=Debug-NetCore
+
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo Local build failed with error level %ERRORLEVEL% 1>&2
+    goto :error
+)
+
+:success
 echo.
 echo ++++++++++++++++
 echo + SUCCESS  :-) +

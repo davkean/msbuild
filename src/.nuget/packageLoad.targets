@@ -6,9 +6,6 @@
         Parameters:
           NuGetConfigDir         - this directory may contain the following files:
                                    NuGet.Config - configuration file
-                                   packages.config - old-facioned way to installed packages
-                                   packages.Linux.config - old-facioned way to install packages for Linux
-                                   packages.Windows_NT.config - old-facioned way to install packages for Windows
                                    project.json - new way to install packages
           NuGetDir               - location to install packages
           SolutionRoot           - Process all project.json files under this directory. Excludes project.json in NuGetConfigDir.
@@ -20,7 +17,6 @@
   <!-- These properties are related to NuGet -->
   <PropertyGroup>
     <NuGetToolPath Condition="'$(NuGetToolPath)'==''">$([System.IO.Path]::Combine($(NuGetDir), "NuGet.exe"))</NuGetToolPath>
-    <NuGetPackagesFile>$([System.IO.Path]::Combine($(NuGetConfigDir),"packages.config"))</NuGetPackagesFile>
     <NuGetProjectJsonFile>$([System.IO.Path]::Combine($(NuGetConfigDir),"project.json"))</NuGetProjectJsonFile>
     <NugetVersion>v3.3.0</NugetVersion>
     <NugetDownloadURL>https://dist.nuget.org/win-x86-commandline/$(NugetVersion)/nuget.exe</NugetDownloadURL>
@@ -31,33 +27,24 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <RestoreBuildToolsPackagesConfigInputs>$(GlobalPropertiesFile);$(NuGetPackagesFile);$(NuGetProjectJsonFile)</RestoreBuildToolsPackagesConfigInputs>
+    <RestoreBuildToolsPackagesConfigInputs>$(GlobalPropertiesFile);$(NuGetProjectJsonFile)</RestoreBuildToolsPackagesConfigInputs>
   </PropertyGroup>
 
   <!-- Restore NuGet.exe and use it to process Nuget.config. -->
   <Target Name="_RestoreBuildToolsPackagesConfig"
           Inputs="$(RestoreBuildToolsPackagesConfigInputs)"
           Outputs="$(BuildToolsSemaphore);$(NugetExeSemaphore);$(NuGetToolPath)"
-          Condition="Exists('$(NuGetPackagesFile)')">
+          Condition="Exists('$(NuGetProjectJsonFile)')">
     <Message Importance="High" Text="Restoring build tools..." />
 
-    <MakeDir Directories="$(NuGetDir)"
-             Condition="!Exists('$(NuGetDir)')" />
-
-    <!-- Download NuGet.exe -->
-    <Exec Command="$(DownloadCommand)" Condition="!Exists('$(NugetExeSemaphore)')" />
-
-    <Touch Files="$(NuGetToolPath)" />
-
-    <Touch Files="$(NugetExeSemaphore)"
-           ContinueOnError="WarnAndContinue"
-           AlwaysCreate="true"
-           ForceTouch="true" />
-
     <!-- Restore tools from packages/project.json -->
-    
-    <Exec Command="$(_RestoreBuildToolsCommand)" StandardOutputImportance="Low" />
-    
+    <Exec Condition="Exists('$(NuGetProjectJsonFile)')" 
+          Command="$(DnuCoreRestoreCommand) --packages $(ToolPackagesDir) &quot;$(NuGetProjectJsonFile)&quot;"/>
+
+    <!-- <Exec Condition="Exists('$(NuGetProjectJsonFile)')" 
+          Command="$(DotnetToolCommand) publish -f dnxcore50 -r $(NuGetRuntimeIdentifier) -o $(ToolPackagesDir) &quot;$(NuGetProjectJsonFile)&quot;"
+          WorkingDirectory="$(NuGetConfigDir)" /> -->
+
     <Error Condition="'$(ErrorIfBuildToolsRestoredFromIndividualProject)'=='true'"
            Text="The build tools package was just restored and so we cannot continue the build of an individual project because targets from the build tools package were not able to be imported. Please retry the build the individual project again." />
 

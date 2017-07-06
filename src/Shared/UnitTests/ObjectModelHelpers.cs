@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
+// Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System;
@@ -6,12 +6,12 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Xml;
 
 using Microsoft.Build.Construction;
+using Microsoft.Build.Engine.UnitTests;
 using Microsoft.Build.Evaluation;
 using Microsoft.Build.Execution;
 using Microsoft.Build.Framework;
@@ -19,6 +19,14 @@ using Microsoft.Build.Logging;
 using Microsoft.Build.Shared;
 using Xunit;
 using Xunit.Abstractions;
+
+using TempPaths = System.Collections.Generic.Dictionary<string, string>;
+
+// Microsoft.Build.Tasks has MSBuildConstants compiled into it under a different namespace otherwise
+// there are collisions with the one compiled into Microsoft.Build.Framework
+#if MICROSOFT_BUILD_TASKS_UNITTESTS
+using MSBuildConstants = Microsoft.Build.Tasks.MSBuildConstants;
+#endif
 
 namespace Microsoft.Build.UnitTests
 {
@@ -28,43 +36,43 @@ namespace Microsoft.Build.UnitTests
      * Utility methods for unit tests that work through the object model.
      *
      */
-    public static class ObjectModelHelpers
+    internal static class ObjectModelHelpers
     {
         private const string msbuildNamespace = "http://schemas.microsoft.com/developer/msbuild/2003";
-        private const string msbuildDefaultToolsVersion = MSBuildConstants.CurrentToolsVersion;
-        private const string msbuildAssemblyVersion = MSBuildConstants.CurrentAssemblyVersion;
-        private const string currentVisualStudioVersion = MSBuildConstants.CurrentVisualStudioVersion;
+        private static string s_msbuildDefaultToolsVersion = MSBuildConstants.CurrentToolsVersion;
+        private static string s_msbuildAssemblyVersion = MSBuildConstants.CurrentAssemblyVersion;
+        private static string s_currentVisualStudioVersion = MSBuildConstants.CurrentVisualStudioVersion;
 
         /// <summary>
-        /// Return the the current Visual Studio version
+        /// Return the current Visual Studio version
         /// </summary>
         internal static string CurrentVisualStudioVersion
         {
             get
             {
-                return currentVisualStudioVersion;
+                return s_currentVisualStudioVersion;
             }
         }
 
         /// <summary>
-        /// Return the default tools version 
+        /// Return the default tools version
         /// </summary>
         internal static string MSBuildDefaultToolsVersion
         {
             get
             {
-                return msbuildDefaultToolsVersion;
+                return s_msbuildDefaultToolsVersion;
             }
         }
 
         /// <summary>
-        /// Return the current assembly version 
+        /// Return the current assembly version
         /// </summary>
         internal static string MSBuildAssemblyVersion
         {
             get
             {
-                return msbuildAssemblyVersion;
+                return s_msbuildAssemblyVersion;
             }
         }
 
@@ -112,7 +120,7 @@ namespace Microsoft.Build.UnitTests
         }
 
         /// <summary>
-        /// Helper that asserts if an exception of type specified is 
+        /// Helper that asserts if an exception of type specified is
         /// not thrown when calling specified method
         /// </summary>
         /// <example>
@@ -136,16 +144,19 @@ namespace Microsoft.Build.UnitTests
 
         internal static void AssertItemEvaluation(string projectContents, string[] inputFiles, string[] expectedInclude, Dictionary<string, string>[] expectedMetadataPerItem = null, bool normalizeSlashes = false)
         {
-
-            using (var testProject = new Helpers.TestProjectWithFiles(projectContents, inputFiles))
+            using (var env = TestEnvironment.Create())
+            using (var collection = new ProjectCollection())
             {
+                var testProject = env.CreateTestProjectWithFiles(projectContents, inputFiles);
+                var evaluatedItems = new Project(testProject.ProjectFile, new Dictionary<string, string>(), MSBuildConstants.CurrentToolsVersion, collection).Items.ToList();
+
                 if (expectedMetadataPerItem == null)
                 {
-                    ObjectModelHelpers.AssertItems(expectedInclude, new Project(testProject.ProjectFile).Items.ToList(), expectedDirectMetadata: null, normalizeSlashes: normalizeSlashes);
+                    ObjectModelHelpers.AssertItems(expectedInclude, evaluatedItems, expectedDirectMetadata: null, normalizeSlashes: normalizeSlashes);
                 }
                 else
                 {
-                    ObjectModelHelpers.AssertItems(expectedInclude, new Project(testProject.ProjectFile).Items.ToList(), expectedMetadataPerItem, normalizeSlashes);
+                    ObjectModelHelpers.AssertItems(expectedInclude, evaluatedItems, expectedMetadataPerItem, normalizeSlashes);
                 }
             }
         }
@@ -198,19 +209,19 @@ namespace Microsoft.Build.UnitTests
         }
 
         /// <summary>
-        /// Amazingly sophisticated :) helper function to determine if the set of ITaskItems returned from 
+        /// Amazingly sophisticated :) helper function to determine if the set of ITaskItems returned from
         /// a task match the expected set of ITaskItems.  It can also check that the ITaskItems have the expected
         /// metadata, and that the ITaskItems are returned in the correct order.
-        /// 
+        ///
         /// The "expectedItemsString" is a formatted way of easily specifying which items you expect to see.
         /// The format is:
-        /// 
+        ///
         ///         itemspec1 :   metadataname1=metadatavalue1 ; metadataname2=metadatavalue2 ; ...
         ///         itemspec2 :   metadataname3=metadatavalue3 ; metadataname4=metadatavalue4 ; ...
         ///         itemspec3 :   metadataname5=metadatavalue5 ; metadataname6=metadatavalue6 ; ...
-        /// 
+        ///
         /// (Each item needs to be on its own line.)
-        /// 
+        ///
         /// </summary>
         /// <param name="expectedItemsString"></param>
         /// <param name="actualItems"></param>
@@ -220,19 +231,19 @@ namespace Microsoft.Build.UnitTests
         }
 
         /// <summary>
-        /// Amazingly sophisticated :) helper function to determine if the set of ITaskItems returned from 
+        /// Amazingly sophisticated :) helper function to determine if the set of ITaskItems returned from
         /// a task match the expected set of ITaskItems.  It can also check that the ITaskItems have the expected
         /// metadata, and that the ITaskItems are returned in the correct order.
-        /// 
+        ///
         /// The "expectedItemsString" is a formatted way of easily specifying which items you expect to see.
         /// The format is:
-        /// 
+        ///
         ///         itemspec1 :   metadataname1=metadatavalue1 ; metadataname2=metadatavalue2 ; ...
         ///         itemspec2 :   metadataname3=metadatavalue3 ; metadataname4=metadatavalue4 ; ...
         ///         itemspec3 :   metadataname5=metadatavalue5 ; metadataname6=metadatavalue6 ; ...
-        /// 
+        ///
         /// (Each item needs to be on its own line.)
-        /// 
+        ///
         /// </summary>
         /// <param name="expectedItemsString"></param>
         /// <param name="actualItems"></param>
@@ -357,7 +368,7 @@ namespace Microsoft.Build.UnitTests
         }
 
         /// <summary>
-        /// Used to compare the contents of two arrays. 
+        /// Used to compare the contents of two arrays.
         /// </summary>
         internal static void AssertArrayContentsMatch(object[] expected, object[] actual)
         {
@@ -372,7 +383,7 @@ namespace Microsoft.Build.UnitTests
 
             Assert.Equal(expected.Length, actual.Length); // "Expected array length of <" + expected.Length + "> but was <" + actual.Length + ">.");
 
-            // Now that we've verified they're both non-null and of the same length, compare each item in the array. 
+            // Now that we've verified they're both non-null and of the same length, compare each item in the array.
             for (int i = 0; i < expected.Length; i++)
             {
                 Assert.Equal(expected[i], actual[i]); // "At index " + i + " expected " + expected[i].ToString() + " but was " + actual.ToString());
@@ -475,10 +486,15 @@ namespace Microsoft.Build.UnitTests
 
             // Place the correct MSBuild namespace into the <Project> tag.
             projectFileContents = projectFileContents.Replace("msbuildnamespace", msbuildNamespace);
-            projectFileContents = projectFileContents.Replace("msbuilddefaulttoolsversion", msbuildDefaultToolsVersion);
-            projectFileContents = projectFileContents.Replace("msbuildassemblyversion", msbuildAssemblyVersion);
+            projectFileContents = projectFileContents.Replace("msbuilddefaulttoolsversion", s_msbuildDefaultToolsVersion);
+            projectFileContents = projectFileContents.Replace("msbuildassemblyversion", s_msbuildAssemblyVersion);
 
             return projectFileContents;
+        }
+
+        public static string Cleanup(this string aString)
+        {
+            return CleanupFileContents(aString);
         }
 
         /// <summary>
@@ -490,7 +506,7 @@ namespace Microsoft.Build.UnitTests
             XmlDocument xmldoc = new XmlDocument();
             xmldoc.LoadXml(xml);
 
-            // Normalize all the whitespace by writing the Xml document out to a 
+            // Normalize all the whitespace by writing the Xml document out to a
             // string, with PreserveWhitespace=false.
             xmldoc.PreserveWhitespace = false;
 
@@ -532,6 +548,16 @@ namespace Microsoft.Build.UnitTests
             File.WriteAllText(projectFilePath, CleanupFileContents(fileContents));
 
             return projectFilePath;
+        }
+
+        internal static ProjectRootElement CreateInMemoryProjectRootElement(string projectContents, ProjectCollection collection = null, bool preserveFormatting = true)
+        {
+            var cleanedProject = ObjectModelHelpers.CleanupFileContents(projectContents);
+
+            return ProjectRootElement.Create(
+                XmlReader.Create(new StringReader(cleanedProject)),
+                collection ?? new ProjectCollection(),
+                preserveFormatting);
         }
 
         /// <summary>
@@ -580,39 +606,28 @@ namespace Microsoft.Build.UnitTests
             string toolsVersion /* may be null */
             )
         {
-            // Anonymous in-memory projects use the current directory for $(MSBuildProjectDirectory).
-            // We need to set the directory to something reasonable.
-            string originalDir = Directory.GetCurrentDirectory();
-            try
+            XmlReaderSettings readerSettings = new XmlReaderSettings {DtdProcessing = DtdProcessing.Ignore};
+
+            Project project = new Project
+                (
+                XmlReader.Create(new StringReader(CleanupFileContents(xml)), readerSettings),
+                null,
+                toolsVersion,
+                projectCollection
+                );
+
+            Guid guid = Guid.NewGuid();
+            project.FullPath = Path.Combine(ObjectModelHelpers.TempProjectDir, "Temporary" + guid.ToString("N") + ".csproj");
+            project.ReevaluateIfNecessary();
+
+            if (logger != null)
             {
-                Directory.SetCurrentDirectory(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
-
-                XmlReaderSettings readerSettings = new XmlReaderSettings {DtdProcessing = DtdProcessing.Ignore};
-
-                Project project = new Project
-                    (
-                    XmlReader.Create(new StringReader(CleanupFileContents(xml)), readerSettings),
-                    null,
-                    toolsVersion,
-                    projectCollection
-                    );
-
-                Guid guid = Guid.NewGuid();
-                project.FullPath = Path.Combine(Path.GetTempPath(), "Temporary" + guid.ToString("N") + ".csproj");
-                project.ReevaluateIfNecessary();
-
-                if (logger != null)
-                {
-                    project.ProjectCollection.RegisterLogger(logger);
-                }
-
-                return project;
+                project.ProjectCollection.RegisterLogger(logger);
             }
-            finally
-            {
-                Directory.SetCurrentDirectory(originalDir);
-            }
+
+            return project;
         }
+
         /// <summary>
         /// Creates a project in memory and builds the default targets.  The build is
         /// expected to succeed.
@@ -630,15 +645,14 @@ namespace Microsoft.Build.UnitTests
         }
 
         internal static void BuildProjectExpectSuccess
-           (
-           string projectContents,
-            ILogger logger
-           )
+            (
+            string projectContents,
+            params ILogger[] loggers
+            )
         {
-            Project project = ObjectModelHelpers.CreateInMemoryProject(projectContents, logger);
-
-            bool success = project.Build(logger);
-            Assert.True(success); // "Build failed.  See Standard Out tab for details"
+            Project project = CreateInMemoryProject(projectContents, logger: null); // logger is null so we take care of loggers ourselves
+            bool success = project.Build(loggers);
+            Assert.True(success);
         }
 
         /// <summary>
@@ -711,6 +725,8 @@ namespace Microsoft.Build.UnitTests
                 if (s_tempProjectDir == null)
                 {
                     s_tempProjectDir = Path.Combine(Path.GetTempPath(), "TempDirForMSBuildUnitTests");
+
+                    Directory.CreateDirectory(s_tempProjectDir);
                 }
 
                 return s_tempProjectDir;
@@ -730,7 +746,7 @@ namespace Microsoft.Build.UnitTests
         /// </summary>
         internal static void DeleteDirectory(string dir)
         {
-            // Manually deleting all children, but intentionally leaving the 
+            // Manually deleting all children, but intentionally leaving the
             // Temp project directory behind due to locking issues which were causing
             // failures in main on Amd64-WOW runs.
 
@@ -773,12 +789,10 @@ namespace Microsoft.Build.UnitTests
 
         /// <summary>
         /// Creates a file in the %TEMP%\TempDirForMSBuildUnitTests directory, after cleaning
-        /// up the file contents (replacing single-back-quote with double-quote, etc.). 
+        /// up the file contents (replacing single-back-quote with double-quote, etc.).
         /// Silently OVERWRITES existing file.
         /// </summary>
-        /// <param name="fileRelativePath"></param>
-        /// <param name="fileContents"></param>
-        internal static string CreateFileInTempProjectDirectory(string fileRelativePath, string fileContents)
+        internal static string CreateFileInTempProjectDirectory(string fileRelativePath, string fileContents, Encoding encoding = null)
         {
             Assert.False(String.IsNullOrEmpty(fileRelativePath));
             string fullFilePath = Path.Combine(TempProjectDir, fileRelativePath);
@@ -789,7 +803,18 @@ namespace Microsoft.Build.UnitTests
             {
                 try
                 {
-                    File.WriteAllText(fullFilePath, CleanupFileContents(fileContents));
+                    if (encoding == null)
+                    {
+                        // This method uses UTF-8 encoding without a Byte-Order Mark (BOM)
+                        // https://msdn.microsoft.com/en-us/library/ms143375(v=vs.110).aspx#Remarks
+                        File.WriteAllText(fullFilePath, CleanupFileContents(fileContents));
+                    }
+                    else
+                    {
+                        // If it is necessary to include a UTF-8 identifier, such as a byte order mark, at the beginning of a file,
+                        // use the WriteAllText(String,?String,?Encoding) method overload with UTF8 encoding.
+                        File.WriteAllText(fullFilePath, CleanupFileContents(fileContents), encoding);
+                    }
                     break;
                 }
                 catch (Exception ex)
@@ -988,7 +1013,7 @@ namespace Microsoft.Build.UnitTests
         /// </summary>
         internal static IList<ProjectItem> GetItems(string content, bool allItems = false)
         {
-            ProjectRootElement projectXml = ProjectRootElement.Create(XmlReader.Create(new StringReader(content)));
+            var projectXml = ProjectRootElement.Create(XmlReader.Create(new StringReader(CleanupFileContents(content))));
             Project project = new Project(projectXml);
             IList<ProjectItem> item = Helpers.MakeList(allItems ? project.Items : project.GetItems("i"));
 
@@ -1013,6 +1038,30 @@ namespace Microsoft.Build.UnitTests
     /// </summary>
     internal static partial class Helpers
     {
+        internal static string GetOSPlatformAsString()
+        {
+            var currentPlatformString = string.Empty;
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                currentPlatformString = "WINDOWS";
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                currentPlatformString = "LINUX";
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                currentPlatformString = "OSX";
+            }
+            else
+            {
+                Assert.True(false, "unrecognized current platform");
+            }
+
+            return currentPlatformString;
+        }
+
         /// <summary>
         /// Returns the count of objects returned by an enumerator
         /// </summary>
@@ -1115,6 +1164,35 @@ namespace Microsoft.Build.UnitTests
             {
                 Assert.True(one.Contains(item));
             }
+        }
+
+        internal static void AssertDictionariesEqual<K, V>(IDictionary<K, V> x, IDictionary<K, V> y, Action<KeyValuePair<K, V>, KeyValuePair<K, V>> assertPairsEqual)
+        {
+            if (x == null || y == null)
+            {
+                Assert.True(x == null && y == null);
+                return;
+            }
+
+            Assert.Equal(x.Count, y.Count);
+
+            for (var i = 0; i < x.Count; i++)
+            {
+                var xPair = x.ElementAt(i);
+                var yPair = y.ElementAt(i);
+
+                assertPairsEqual(xPair, yPair);
+            }
+        }
+
+        internal static void AssertDictionariesEqual(IDictionary<string, string> x, IDictionary<string, string> y)
+        {
+            AssertDictionariesEqual(x, y,
+                (xPair, yPair) =>
+                {
+                    Assert.Equal(xPair.Key, yPair.Key);
+                    Assert.Equal(xPair.Value, yPair.Value);
+                });
         }
 
         /// <summary>
@@ -1274,6 +1352,11 @@ namespace Microsoft.Build.UnitTests
         /// </summary>
         internal static string[] CreateFilesInDirectory(string rootDirectory, params string[] files)
         {
+            if (files == null)
+            {
+                return null;
+            }
+
             Assert.True(Directory.Exists(rootDirectory), $"Directory {rootDirectory} does not exist");
 
             var result = new string[files.Length];
@@ -1304,7 +1387,7 @@ namespace Microsoft.Build.UnitTests
 
         private static string[] SplitPathIntoFragments(string path)
         {
-            // Both Path.AltDirectorSeparatorChar and Path.DirectorySeparator char return '/' on OSX, 
+            // Both Path.AltDirectorSeparatorChar and Path.DirectorySeparator char return '/' on OSX,
             // which renders them useless for the following case where I want to split a path that may contain either separator
             var splits = path.Split('/', '\\');
 
@@ -1455,27 +1538,15 @@ namespace Microsoft.Build.UnitTests
         }
 
         /// <summary>
-        /// Command you can pass to Exec to sleep for rough number of milliseconds.
-        /// @for /l %i in (1,1,X) do "@dir %windir% > nul"
-        /// sleeps for X/100 seconds, roughly
-        /// This works around not having sleep.exe on the path.
+        /// Gets a command that can be used by an Exec task to sleep for the specified amount of time.
         /// </summary>
-        internal static string SleepCommandInMilliseconds(int milliseconds)
+        /// <param name="timeSpan">A <see cref="TimeSpan"/> representing the amount of time to sleep.</param>
+        internal static string GetSleepCommand(TimeSpan timeSpan)
         {
-            return String.Format(@"@for /l %25%25i in (1,1,{0}) do @dir %25windir%25 > nul", milliseconds / 10);
-        }
-
-        /// <summary>
-        /// Command you can pass to Exec to sleep for rough number of seconds.
-        /// @for /l %i in (1,1,X) do "@dir %windir% > nul"
-        /// sleeps for X/100 seconds, roughly
-        /// This works around not having sleep.exe on the path.
-        /// </summary>
-        /// <param name="seconds"></param>
-        /// <returns></returns>
-        internal static string SleepCommand(int seconds)
-        {
-            return SleepCommandInMilliseconds(seconds * 1000);
+            return
+                NativeMethodsShared.IsWindows
+                ? $"@powershell -command &quot;Start-Sleep -Milliseconds {(int)timeSpan.TotalMilliseconds}&quot; &gt;nul"
+                : $"sleep {timeSpan.TotalSeconds}";
         }
 
         /// <summary>
@@ -1497,61 +1568,46 @@ namespace Microsoft.Build.UnitTests
                 ? path
                 : path.ToSlash();
 
-        internal class TestProjectWithFiles : IDisposable
+        /// <summary>
+        /// Creates a new temp path
+        /// Sets all OS temp environment variables to the new path
+        ///
+        /// Cleanup:
+        /// - restores OS temp environment variables
+        /// - deletes all files written to the new temp path
+        /// </summary>
+        internal class AlternativeTempPath : IDisposable
         {
+            private const string TMP = "TMP";
+            private const string TMPDIR = "TMPDIR";
+            private const string TEMP = "TEMP";
+
+            private TempPaths _oldtempPaths;
             private bool _disposed;
 
-            private readonly string _testRoot;
-            private readonly string[] _createdFiles;
-            private readonly string _projectFile;
-
-            public string TestRoot
+            private string _path;
+            public string Path
             {
                 get
                 {
-                    ThrowIfDisposed();
-                    return _testRoot;
+                    if (_disposed)
+                    {
+                        throw new ObjectDisposedException($"{nameof(AlternativeTempPath)}(\"{_path})\"");
+                    }
+
+                    return _path;
                 }
+
+                private set { _path = value; }
             }
 
-            public string[] CreatedFiles
+            public AlternativeTempPath()
             {
-                get
-                {
-                    ThrowIfDisposed();
-                    return _createdFiles;
-                }
-            }
+                Path = System.IO.Path.GetFullPath($"TMP_{Guid.NewGuid()}");
+                Directory.CreateDirectory(_path);
 
-            public string ProjectFile
-            {
-                get
-                {
-                    ThrowIfDisposed();
-                    return _projectFile;
-                }
-            }
-
-            public TestProjectWithFiles(string projectContents, string[] files, string relativePathFromRootToProject)
-            {
-                string createdProjectFile;
-                string[] createdFiles;
-                _testRoot = CreateProjectInTempDirectoryWithFiles(projectContents, files, out createdProjectFile, out createdFiles, relativePathFromRootToProject);
-
-                _createdFiles = createdFiles;
-                _projectFile = createdProjectFile;
-            }
-
-            public TestProjectWithFiles(string projectContents, string[] files) : this(projectContents, files, ".")
-            {
-            }
-
-            private void ThrowIfDisposed()
-            {
-                if (_disposed)
-                {
-                    throw new ObjectDisposedException($"{nameof(TestProjectWithFiles)}({TestRoot}) was disposed");
-                }
+                // TODO: this could use TemporaryEnvironment
+                _oldtempPaths = SetTempPath(_path);
             }
 
             public void Dispose()
@@ -1567,14 +1623,83 @@ namespace Microsoft.Build.UnitTests
                     return;
                 }
 
-                FileUtilities.DeleteDirectoryNoThrow(TestRoot, true);
+                SetTempPaths(_oldtempPaths);
+                FileUtilities.DeleteDirectoryNoThrow(Path, true);
 
                 _disposed = true;
             }
 
-            ~TestProjectWithFiles()
+            ~AlternativeTempPath()
             {
                 Cleanup();
+            }
+
+            private static TempPaths SetTempPaths(TempPaths tempPaths)
+            {
+                var oldTempPaths = GetTempPaths();
+
+                foreach (var key in oldTempPaths.Keys)
+                {
+                    Environment.SetEnvironmentVariable(key, tempPaths[key]);
+                }
+
+                return oldTempPaths;
+            }
+
+            private static TempPaths SetTempPath(string tempPath)
+            {
+                var oldTempPaths = GetTempPaths();
+
+                foreach (var key in oldTempPaths.Keys)
+                {
+                    Environment.SetEnvironmentVariable(key, tempPath);
+                }
+
+                return oldTempPaths;
+            }
+
+            private static TempPaths GetTempPaths()
+            {
+                var tempPaths = new TempPaths
+                {
+                    [TMP] = Environment.GetEnvironmentVariable(TMP),
+                    [TEMP] = Environment.GetEnvironmentVariable(TEMP)
+                };
+
+                if (NativeMethodsShared.IsUnixLike)
+                {
+                    tempPaths[TMPDIR] = Environment.GetEnvironmentVariable(TMPDIR);
+                }
+
+                return tempPaths;
+            }
+        }
+
+        internal class ElementLocationComparerIgnoringType : IEqualityComparer<ElementLocation>
+        {
+            public bool Equals(ElementLocation x, ElementLocation y)
+            {
+                if (x == null)
+                {
+                    return y == null;
+                }
+
+                if (x.Line != y.Line || x.Column != y.Column)
+                {
+                    return false;
+                }
+
+                if (!String.Equals(x.File, y.File, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                return true;
+            }
+
+            public int GetHashCode(ElementLocation obj)
+            {
+                return obj.Line.GetHashCode() ^ obj.Column.GetHashCode() ^ obj.File.GetHashCode();
             }
         }
     }

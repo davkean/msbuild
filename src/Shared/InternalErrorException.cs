@@ -10,8 +10,9 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Security.Permissions; // for SecurityPermissionAttribute
+#if FEATURE_BINARY_SERIALIZATION
 using System.Runtime.Serialization;
+#endif
 
 namespace Microsoft.Build.Shared
 {
@@ -26,7 +27,9 @@ namespace Microsoft.Build.Shared
     /// !~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~!~
     ///     
     /// </summary>
+#if FEATURE_BINARY_SERIALIZATION
     [Serializable]
+#endif
     internal sealed class InternalErrorException : Exception
     {
         /// <summary>
@@ -66,6 +69,7 @@ namespace Microsoft.Build.Shared
             ConsiderDebuggerLaunch(message, innerException);
         }
 
+#if FEATURE_BINARY_SERIALIZATION
         #region Serialization (update when adding new class members)
 
         /// <summary>
@@ -80,6 +84,7 @@ namespace Microsoft.Build.Shared
 
         // Base implementation of GetObjectData() is sufficient; we have no fields
         #endregion
+#endif
 
         #region ConsiderDebuggerLaunch
         /// <summary>
@@ -108,23 +113,35 @@ namespace Microsoft.Build.Shared
 
             if (Environment.GetEnvironmentVariable("MSBUILDLAUNCHDEBUGGER") != null)
             {
-                Debug.Fail(message, innerMessage);
-                Debugger.Launch();
+                LaunchDebugger(message, innerMessage);
                 return;
             }
 
-#if DEBUG   
-            if (Environment.GetEnvironmentVariable("MSBUILDDONOTLAUNCHDEBUGGER") == null)
+#if DEBUG
+            if (!RunningTests() && Environment.GetEnvironmentVariable("MSBUILDDONOTLAUNCHDEBUGGER") == null
+                && Environment.GetEnvironmentVariable("_NTROOT") == null)
             {
-                if (!RunningTests())
-                {
-                    if (Environment.GetEnvironmentVariable("_NTROOT") == null)
-                    {
-                        Debug.Fail(message, innerMessage);
-                        Debugger.Launch();
-                        return;
-                    }
-                }
+                LaunchDebugger(message, innerMessage);
+                return;
+            }
+#endif
+        }
+
+        private static void LaunchDebugger(string message, string innerMessage)
+        {
+#if FEATURE_DEBUG_LAUNCH
+            Debug.Fail(message, innerMessage);
+            Debugger.Launch();
+#else
+            Console.WriteLine("MSBuild Failure: " + message);    
+            if (!string.IsNullOrEmpty(innerMessage))
+            {
+                Console.WriteLine(innerMessage);
+            }
+            Console.WriteLine("Waiting for debugger to attach to process: " + Process.GetCurrentProcess().Id);
+            while (!Debugger.IsAttached)
+            {
+                System.Threading.Thread.Sleep(100);
             }
 #endif
         }
@@ -146,19 +163,28 @@ namespace Microsoft.Build.Shared
                 "Microsoft.Build.Utilities.UnitTests", "Microsoft.Build.CommandLine.UnitTests",
                 "Microsoft.Build.Engine.OM.UnitTests", "Microsoft.Build.Framework.UnitTests"
             };
+
+#if FEATURE_GET_COMMANDLINE
             var processNameCommandLine = Environment.GetCommandLineArgs()[0];
+#else
+            string processNameCommandLine = null;
+#endif
             var processNameCurrentProcess = Process.GetCurrentProcess().MainModule.FileName;
 
             // First check if we're running in a known test runner.
             if (IsProcessInList(processNameCommandLine, testRunners) ||
                 IsProcessInList(processNameCurrentProcess, testRunners))
             {
+#if FEATURE_APPDOMAIN
                 // If we are, then ensure we're running MSBuild's tests by seeing if any of our assemblies are loaded.
                 foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
                 {
                     if (testAssemblies.Any(item => item.Equals(assembly.GetName().Name, StringComparison.InvariantCultureIgnoreCase)))
                         return true;
                 }
+#else
+                return true;
+#endif
             }
 
             return false;
@@ -166,7 +192,7 @@ namespace Microsoft.Build.Shared
 
         private static bool IsProcessInList(string processName, string[] processList)
         {
-            return processList.Any(s => Path.GetFileNameWithoutExtension(processName)?.IndexOf(s, StringComparison.InvariantCultureIgnoreCase) >= 0);
+            return processList.Any(s => Path.GetFileNameWithoutExtension(processName)?.IndexOf(s, StringComparison.OrdinalIgnoreCase) >= 0);
         }
     }
 }

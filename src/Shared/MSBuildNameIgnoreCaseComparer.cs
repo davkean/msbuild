@@ -10,9 +10,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Diagnostics;
 using Microsoft.Build.Shared;
 
 namespace Microsoft.Build.Collections
@@ -24,7 +21,9 @@ namespace Microsoft.Build.Collections
     /// 2) It uses "unsafe" pointers to maximize performance of those operations
     /// 3) It takes advantage of limitations on MSBuild Property/Item names to cheaply do case insensitive comparison.
     /// </summary>
+#if FEATURE_BINARY_SERIALIZATION
     [Serializable]
+#endif
     internal class MSBuildNameIgnoreCaseComparer : EqualityComparer<string>, IEqualityComparer<IKeyed>
     {
         /// <summary>
@@ -40,7 +39,7 @@ namespace Microsoft.Build.Collections
         /// <summary>
         /// The processor architecture on which we are running, but default it will be x86
         /// </summary>
-        private static ushort s_runningProcessorArchitecture = NativeMethodsShared.PROCESSOR_ARCHITECTURE_INTEL;
+        private static NativeMethodsShared.ProcessorArchitectures s_runningProcessorArchitecture = NativeMethodsShared.ProcessorArchitectures.X86;
 
         /// <summary>
         /// Object used to lock the internal state s.t. we know that only one person is modifying
@@ -78,11 +77,7 @@ namespace Microsoft.Build.Collections
         /// </summary>
         static MSBuildNameIgnoreCaseComparer()
         {
-            NativeMethodsShared.SYSTEM_INFO systemInfo = new NativeMethodsShared.SYSTEM_INFO();
-
-            NativeMethodsShared.GetSystemInfo(ref systemInfo);
-
-            s_runningProcessorArchitecture = systemInfo.wProcessorArchitecture;
+            s_runningProcessorArchitecture = NativeMethodsShared.ProcessorArchitecture;
         }
 
         /// <summary>
@@ -129,7 +124,8 @@ namespace Microsoft.Build.Collections
                 return false;
             }
 
-            if ((s_runningProcessorArchitecture != NativeMethodsShared.PROCESSOR_ARCHITECTURE_IA64) && (s_runningProcessorArchitecture != NativeMethodsShared.PROCESSOR_ARCHITECTURE_ARM))
+            if ((s_runningProcessorArchitecture != NativeMethodsShared.ProcessorArchitectures.IA64)
+                && (s_runningProcessorArchitecture != NativeMethodsShared.ProcessorArchitectures.ARM))
             {
                 // The use of unsafe here is quite a bit faster than the regular
                 // mechanism in the BCL. This is because we can make assumptions
@@ -346,7 +342,8 @@ namespace Microsoft.Build.Collections
                 }
             }
 
-            if ((s_runningProcessorArchitecture != NativeMethodsShared.PROCESSOR_ARCHITECTURE_IA64) && (s_runningProcessorArchitecture != NativeMethodsShared.PROCESSOR_ARCHITECTURE_ARM))
+            if ((s_runningProcessorArchitecture != NativeMethodsShared.ProcessorArchitectures.IA64)
+                && (s_runningProcessorArchitecture != NativeMethodsShared.ProcessorArchitectures.ARM))
             {
                 unsafe
                 {

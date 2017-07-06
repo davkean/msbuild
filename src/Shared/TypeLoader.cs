@@ -5,14 +5,13 @@
 // <summary>Determines if a type is in a given assembly and loads that type.</summary>
 //-----------------------------------------------------------------------
 
+
 using System;
-using System.IO;
-using System.Reflection;
-using System.Collections;
-using System.Globalization;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Collections.Concurrent;
+using System.IO;
+using System.Reflection;
 
 namespace Microsoft.Build.Shared
 {
@@ -41,25 +40,39 @@ namespace Microsoft.Build.Shared
         /// </summary>
         private static readonly Object s_reflectionOnlyloadInfoToTypeLock = new Object();
 
+#if !FEATURE_ASSEMBLY_LOADFROM
         /// <summary>
-        /// Cache to keep track of the assemblyLoadInfos based on a given typeFilter.
+        /// AssemblyContextLoader used to load DLLs outside of msbuild.exe directory
         /// </summary>
-        private static ConcurrentDictionary<TypeFilter, ConcurrentDictionary<AssemblyLoadInfo, AssemblyInfoToLoadedTypes>> s_cacheOfLoadedTypesByFilter = new ConcurrentDictionary<TypeFilter, ConcurrentDictionary<AssemblyLoadInfo, AssemblyInfoToLoadedTypes>>();
+        private static readonly CoreClrAssemblyLoader s_coreClrAssemblyLoader;
+#endif
 
         /// <summary>
-        /// Cache to keep track of the assemblyLoadInfos based on a given typeFilter for assemblies which are to be loaded for reflectionOnlyLoads.
+        /// Cache to keep track of the assemblyLoadInfos based on a given type filter.
         /// </summary>
-        private static ConcurrentDictionary<TypeFilter, ConcurrentDictionary<AssemblyLoadInfo, AssemblyInfoToLoadedTypes>> s_cacheOfReflectionOnlyLoadedTypesByFilter = new ConcurrentDictionary<TypeFilter, ConcurrentDictionary<AssemblyLoadInfo, AssemblyInfoToLoadedTypes>>();
+        private static ConcurrentDictionary<Func<Type, object, bool>, ConcurrentDictionary<AssemblyLoadInfo, AssemblyInfoToLoadedTypes>> s_cacheOfLoadedTypesByFilter = new ConcurrentDictionary<Func<Type, object, bool>, ConcurrentDictionary<AssemblyLoadInfo, AssemblyInfoToLoadedTypes>>();
 
         /// <summary>
-        /// Typefilter for this typeloader
+        /// Cache to keep track of the assemblyLoadInfos based on a given type filter for assemblies which are to be loaded for reflectionOnlyLoads.
         /// </summary>
-        private TypeFilter _isDesiredType;
+        private static ConcurrentDictionary<Func<Type, object, bool>, ConcurrentDictionary<AssemblyLoadInfo, AssemblyInfoToLoadedTypes>> s_cacheOfReflectionOnlyLoadedTypesByFilter = new ConcurrentDictionary<Func<Type, object, bool>, ConcurrentDictionary<AssemblyLoadInfo, AssemblyInfoToLoadedTypes>>();
+
+        /// <summary>
+        /// Type filter for this typeloader
+        /// </summary>
+        private Func<Type, object, bool> _isDesiredType;
+
+#if !FEATURE_ASSEMBLY_LOADFROM
+        static TypeLoader()
+        {
+            s_coreClrAssemblyLoader = new CoreClrAssemblyLoader();
+        }
+#endif
 
         /// <summary>
         /// Constructor.
         /// </summary>
-        internal TypeLoader(TypeFilter isDesiredType)
+        internal TypeLoader(Func<Type, object, bool> isDesiredType)
         {
             ErrorUtilities.VerifyThrow(isDesiredType != null, "need a type filter");
 
@@ -148,6 +161,62 @@ namespace Microsoft.Build.Shared
         }
 
         /// <summary>
+        /// Load an assembly given its AssemblyLoadInfo
+        /// </summary>
+        /// <param name="assemblyLoadInfo"></param>
+        /// <returns></returns>
+        private static Assembly LoadAssembly(AssemblyLoadInfo assemblyLoadInfo)
+        {
+            Assembly loadedAssembly = null;
+
+            try
+            {
+                if (assemblyLoadInfo.AssemblyName != null)
+                {
+#if FEATURE_ASSEMBLY_LOADFROM
+                    loadedAssembly = Assembly.Load(assemblyLoadInfo.AssemblyName);
+#else
+                    loadedAssembly = Assembly.Load(new AssemblyName(assemblyLoadInfo.AssemblyName));
+#endif
+                }
+                else
+                {
+#if FEATURE_ASSEMBLY_LOADFROM
+                    loadedAssembly = Assembly.UnsafeLoadFrom(assemblyLoadInfo.AssemblyFile);
+#else
+                    // If the Assembly is provided via a file path, the following rules are used to load the assembly:
+                    // - if the simple name of the assembly exists in the same folder as msbuild.exe, then that assembly gets loaded, indifferent of the user specified path
+                    // - otherwise, the assembly from the user specified path is loaded, if it exists.
+
+                    var assemblyNameInExecutableDirectory = Path.Combine(BuildEnvironmentHelper.Instance.CurrentMSBuildToolsDirectory,
+                        Path.GetFileName(assemblyLoadInfo.AssemblyFile));
+
+                    if (File.Exists(assemblyNameInExecutableDirectory))
+                    {
+                        var simpleName = Path.GetFileNameWithoutExtension(assemblyLoadInfo.AssemblyFile);
+                        loadedAssembly = Assembly.Load(new AssemblyName(simpleName));
+                    }
+                    else
+                    {
+                        var baseDir = Path.GetDirectoryName(assemblyLoadInfo.AssemblyFile);
+                        s_coreClrAssemblyLoader.AddDependencyLocation(baseDir);
+                        loadedAssembly = s_coreClrAssemblyLoader.LoadFromPath(assemblyLoadInfo.AssemblyFile);
+                    }
+#endif
+                }
+            }
+            catch (ArgumentException e)
+            {
+                // Assembly.Load() and Assembly.LoadFrom() will throw an ArgumentException if the assembly name is invalid
+                // convert to a FileNotFoundException because it's more meaningful
+                // NOTE: don't use ErrorUtilities.VerifyThrowFileExists() here because that will hit the disk again
+                throw new FileNotFoundException(null, assemblyLoadInfo.AssemblyLocation, e);
+            }
+
+            return loadedAssembly;
+        }
+
+        /// <summary>
         /// Loads the specified type if it exists in the given assembly. If the type name is fully qualified, then a match (if
         /// any) is unambiguous; otherwise, if there are multiple types with the same name in different namespaces, the first type
         /// found will be returned.
@@ -181,9 +250,9 @@ namespace Microsoft.Build.Shared
         /// any) is unambiguous; otherwise, if there are multiple types with the same name in different namespaces, the first type
         /// found will be returned.
         /// </summary>
-        private LoadedType GetLoadedType(object cacheLock, object loadInfoToTypeLock, ConcurrentDictionary<TypeFilter, ConcurrentDictionary<AssemblyLoadInfo, AssemblyInfoToLoadedTypes>> cache, string typeName, AssemblyLoadInfo assembly)
+        private LoadedType GetLoadedType(object cacheLock, object loadInfoToTypeLock, ConcurrentDictionary<Func<Type, object, bool>, ConcurrentDictionary<AssemblyLoadInfo, AssemblyInfoToLoadedTypes>> cache, string typeName, AssemblyLoadInfo assembly)
         {
-            // A given typefilter have been used on a number of assemblies, Based on the typefilter we will get another dictionary which 
+            // A given type filter have been used on a number of assemblies, Based on the type filter we will get another dictionary which 
             // will map a specific AssemblyLoadInfo to a AssemblyInfoToLoadedTypes class which knows how to find a typeName in a given assembly.
             ConcurrentDictionary<AssemblyLoadInfo, AssemblyInfoToLoadedTypes> loadInfoToType = null;
             lock (cacheLock)
@@ -210,7 +279,7 @@ namespace Microsoft.Build.Shared
         }
 
         /// <summary>
-        /// Given a type filter and an asssemblyInfo object keep track of what types in a given assembly which match the typefilter.
+        /// Given a type filter and an asssemblyInfo object keep track of what types in a given assembly which match the type filter.
         /// Also, use this information to determine if a given TypeName is in the assembly which is pointed to by the AssemblyLoadInfo object.
         /// 
         /// This type represents a combination of a type filter and an assemblyInfo object.
@@ -226,7 +295,7 @@ namespace Microsoft.Build.Shared
             /// <summary>
             /// Type filter to pick the correct types out of an assembly
             /// </summary>
-            private TypeFilter _isDesiredType;
+            private Func<Type, object, bool> _isDesiredType;
 
             /// <summary>
             /// Assembly load information so we can load an assembly
@@ -239,7 +308,7 @@ namespace Microsoft.Build.Shared
             private Dictionary<string, Type> _typeNameToType;
 
             /// <summary>
-            /// List of public types in the assembly which match the typefilter and their corresponding types
+            /// List of public types in the assembly which match the type filter and their corresponding types
             /// </summary>
             private Dictionary<string, Type> _publicTypeNameToType;
 
@@ -258,7 +327,7 @@ namespace Microsoft.Build.Shared
             /// <summary>
             /// Given a type filter, and an assembly to load the type information from determine if a given type name is in the assembly or not.
             /// </summary>
-            internal AssemblyInfoToLoadedTypes(TypeFilter typeFilter, AssemblyLoadInfo loadInfo)
+            internal AssemblyInfoToLoadedTypes(Func<Type, object, bool> typeFilter, AssemblyLoadInfo loadInfo)
             {
                 ErrorUtilities.VerifyThrowArgumentNull(typeFilter, "typefilter");
                 ErrorUtilities.VerifyThrowArgumentNull(loadInfo, "loadInfo");
@@ -359,24 +428,7 @@ namespace Microsoft.Build.Shared
             private void ScanAssemblyForPublicTypes()
             {
                 // we need to search the assembly for the type...
-                try
-                {
-                    if (_assemblyLoadInfo.AssemblyName != null)
-                    {
-                        _loadedAssembly = Assembly.Load(_assemblyLoadInfo.AssemblyName);
-                    }
-                    else
-                    {
-                        _loadedAssembly = Assembly.UnsafeLoadFrom(_assemblyLoadInfo.AssemblyFile);
-                    }
-                }
-                catch (ArgumentException e)
-                {
-                    // Assembly.Load() and Assembly.LoadFrom() will throw an ArgumentException if the assembly name is invalid
-                    // convert to a FileNotFoundException because it's more meaningful
-                    // NOTE: don't use ErrorUtilities.VerifyThrowFileExists() here because that will hit the disk again
-                    throw new FileNotFoundException(null, _assemblyLoadInfo.AssemblyLocation, e);
-                }
+                _loadedAssembly = LoadAssembly(_assemblyLoadInfo);
 
                 // only look at public types
                 Type[] allPublicTypesInAssembly = _loadedAssembly.GetExportedTypes();

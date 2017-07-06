@@ -21,10 +21,15 @@ namespace Microsoft.Build.Framework
     /// without following certain special FX guidelines, can break both
     /// forward and backward compatibility
     /// </remarks>
+#if FEATURE_BINARY_SERIALIZATION
     [Serializable]
+#endif
     public class ProjectStartedEventArgs : BuildStatusEventArgs
     {
         #region Constants
+        /// <summary>
+        /// Indicates an invalid project identifier.
+        /// </summary>
         public const int InvalidProjectId = -1;
         #endregion
 
@@ -99,6 +104,8 @@ namespace Microsoft.Build.Framework
         /// <param name="properties">list of properties</param>
         /// <param name="items">list of items</param>
         /// <param name="parentBuildEventContext">event context info for the parent project</param>
+        /// <param name="globalProperties">An <see cref="IDictionary{String, String}"/> containing global properties.</param>
+        /// <param name="toolsVersion">The tools version.</param>
         public ProjectStartedEventArgs
         (
             int projectId,
@@ -128,6 +135,7 @@ namespace Microsoft.Build.Framework
         /// <param name="targetNames">targets we are going to build (empty indicates default targets)</param>
         /// <param name="properties">list of properties</param>
         /// <param name="items">list of items</param>
+        /// <param name="eventTimestamp">The <see cref="DateTime"/> of the event.</param>
         public ProjectStartedEventArgs
         (
             string message,
@@ -167,6 +175,7 @@ namespace Microsoft.Build.Framework
         /// <param name="properties">list of properties</param>
         /// <param name="items">list of items</param>
         /// <param name="parentBuildEventContext">event context info for the parent project</param>
+        /// <param name="eventTimestamp">The <see cref="DateTime"/> of the event.</param>
         public ProjectStartedEventArgs
         (
             int projectId,
@@ -189,9 +198,14 @@ namespace Microsoft.Build.Framework
         // This number indicated the instance id of the project and can be
         // used when debugging to determine if two projects with the same name
         // are the same project instance or different instances
+#if FEATURE_BINARY_SERIALIZATION
         [OptionalField(VersionAdded = 2)]
+#endif
         private int projectId;
 
+        /// <summary>
+        /// Gets the idenifier of the project.
+        /// </summary>
         public int ProjectId
         {
             get
@@ -200,7 +214,9 @@ namespace Microsoft.Build.Framework
             }
         }
 
+#if FEATURE_BINARY_SERIALIZATION
         [OptionalField(VersionAdded = 2)]
+#endif
         private BuildEventContext parentProjectBuildEventContext;
 
         /// <summary>
@@ -249,7 +265,9 @@ namespace Microsoft.Build.Framework
         /// <summary>
         /// Gets the set of global properties used to evaluate this project.
         /// </summary>
+#if FEATURE_BINARY_SERIALIZATION
         [OptionalField(VersionAdded = 2)]
+#endif
         private IDictionary<string, string> globalProperties;
 
         /// <summary>
@@ -268,7 +286,9 @@ namespace Microsoft.Build.Framework
             }
         }
 
+#if FEATURE_BINARY_SERIALIZATION
         [OptionalField(VersionAdded = 2)]
+#endif
         private string toolsVersion;
 
         /// <summary>
@@ -290,7 +310,9 @@ namespace Microsoft.Build.Framework
         // IEnumerable is not a serializable type. That is okay because
         // (a) this event will not be thrown by tasks, so it should not generally cross AppDomain boundaries
         // (b) this event still makes sense when this field is "null"
+#if FEATURE_BINARY_SERIALIZATION
         [NonSerialized]
+#endif
         private IEnumerable properties;
 
         /// <summary>
@@ -315,7 +337,9 @@ namespace Microsoft.Build.Framework
         // IEnumerable is not a serializable type. That is okay because
         // (a) this event will not be thrown by tasks, so it should not generally cross AppDomain boundaries
         // (b) this event still makes sense when this field is "null"
+#if FEATURE_BINARY_SERIALIZATION
         [NonSerialized]
+#endif
         private IEnumerable items;
 
         /// <summary>
@@ -336,6 +360,7 @@ namespace Microsoft.Build.Framework
             }
         }
 
+#if FEATURE_BINARY_SERIALIZATION
         #region CustomSerializationToStream
 
         /// <summary>
@@ -521,7 +546,9 @@ namespace Microsoft.Build.Framework
             #endregion
         }
         #endregion
+#endif
 
+#if FEATURE_BINARY_SERIALIZATION
         #region SerializationSection
         [OnDeserializing] // Will happen before the object is deserialized
         private void SetDefaultsBeforeSerialization(StreamingContext sc)
@@ -547,5 +574,6 @@ namespace Microsoft.Build.Framework
             }
         }
         #endregion
+#endif
     }
 }
