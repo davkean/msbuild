@@ -274,121 +274,121 @@ namespace Microsoft.Build.UnitTests.Evaluation
         [Fact]
         public void NoOpSplit()
         {
-            VerifySplitSemiColonSeparatedList("a", "a");
+            VerifySplitSemicolonSeparatedList("a", "a");
         }
 
         [Fact]
         public void BasicSplit()
         {
-            VerifySplitSemiColonSeparatedList("a;b", "a", "b");
+            VerifySplitSemicolonSeparatedList("a;b", "a", "b");
         }
 
         [Fact]
         public void Empty()
         {
-            VerifySplitSemiColonSeparatedList("", null);
+            VerifySplitSemicolonSeparatedList("", null);
         }
 
         [Fact]
         public void SemicolonOnly()
         {
-            VerifySplitSemiColonSeparatedList(";", null);
+            VerifySplitSemicolonSeparatedList(";", null);
         }
 
         [Fact]
         public void TwoSemicolons()
         {
-            VerifySplitSemiColonSeparatedList(";;", null);
+            VerifySplitSemicolonSeparatedList(";;", null);
         }
 
         [Fact]
         public void TwoSemicolonsAndOneEntryAtStart()
         {
-            VerifySplitSemiColonSeparatedList("a;;", "a");
+            VerifySplitSemicolonSeparatedList("a;;", "a");
         }
 
         [Fact]
         public void TwoSemicolonsAndOneEntryAtEnd()
         {
-            VerifySplitSemiColonSeparatedList(";;a", "a");
+            VerifySplitSemicolonSeparatedList(";;a", "a");
         }
 
         [Fact]
         public void AtSignAtEnd()
         {
-            VerifySplitSemiColonSeparatedList("@", "@");
+            VerifySplitSemicolonSeparatedList("@", "@");
         }
 
         [Fact]
         public void AtSignParenAtEnd()
         {
-            VerifySplitSemiColonSeparatedList("foo@(", "foo@(");
+            VerifySplitSemicolonSeparatedList("foo@(", "foo@(");
         }
 
         [Fact]
         public void EmptyEntriesRemoved()
         {
-            VerifySplitSemiColonSeparatedList(";a;bbb;;c;;", "a", "bbb", "c");
+            VerifySplitSemicolonSeparatedList(";a;bbb;;c;;", "a", "bbb", "c");
         }
 
         [Fact]
         public void EntriesTrimmed()
         {
-            VerifySplitSemiColonSeparatedList("  ;  a   ;b   ;   ;c\n;  \r;  ", "a", "b", "c");
+            VerifySplitSemicolonSeparatedList("  ;  a   ;b   ;   ;c\n;  \r;  ", "a", "b", "c");
         }
 
         [Fact]
         public void NoSplittingOnMacros()
         {
-            VerifySplitSemiColonSeparatedList("@(foo->';')", "@(foo->';')");
+            VerifySplitSemicolonSeparatedList("@(foo->';')", "@(foo->';')");
         }
 
         [Fact]
         public void NoSplittingOnSeparators()
         {
-            VerifySplitSemiColonSeparatedList("@(foo, ';')", "@(foo, ';')");
+            VerifySplitSemicolonSeparatedList("@(foo, ';')", "@(foo, ';')");
         }
 
         [Fact]
         public void NoSplittingOnSeparatorsAndMacros()
         {
-            VerifySplitSemiColonSeparatedList("@(foo->'abc;def', 'ghi;jkl')", "@(foo->'abc;def', 'ghi;jkl')");
+            VerifySplitSemicolonSeparatedList("@(foo->'abc;def', 'ghi;jkl')", "@(foo->'abc;def', 'ghi;jkl')");
         }
 
         [Fact]
         public void CloseParensInMacro()
         {
-            VerifySplitSemiColonSeparatedList("@(foo->');')", "@(foo->');')");
+            VerifySplitSemicolonSeparatedList("@(foo->');')", "@(foo->');')");
         }
 
         [Fact]
         public void CloseParensInSeparator()
         {
-            VerifySplitSemiColonSeparatedList("a;@(foo,');');b", "a", "@(foo,');')", "b");
+            VerifySplitSemicolonSeparatedList("a;@(foo,');');b", "a", "@(foo,');')", "b");
         }
 
         [Fact]
         public void CloseParensInMacroAndSeparator()
         {
-            VerifySplitSemiColonSeparatedList("@(foo->';);', ';);')", "@(foo->';);', ';);')");
+            VerifySplitSemicolonSeparatedList("@(foo->';);', ';);')", "@(foo->';);', ';);')");
         }
 
         [Fact]
         public void EmptyQuotesInMacroAndSeparator()
         {
-            VerifySplitSemiColonSeparatedList(" @(foo->'', '')", "@(foo->'', '')");
+            VerifySplitSemicolonSeparatedList(" @(foo->'', '')", "@(foo->'', '')");
         }
 
         [Fact]
         public void MoreParensAndAtSigns()
         {
-            VerifySplitSemiColonSeparatedList("@(foo->';());', ';@();')", "@(foo->';());', ';@();')");
+            VerifySplitSemicolonSeparatedList("@(foo->';());', ';@();')", "@(foo->';());', ';@();')");
         }
 
         [Fact]
         public void SplittingExceptForMacros()
         {
-            VerifySplitSemiColonSeparatedList("@(foo->';');def;@ghi;", "@(foo->';')", "def", "@ghi");
+            VerifySplitSemicolonSeparatedList("@(foo->';');def;@ghi;", "@(foo->';')", "def", "@ghi");
         }
 
         // Invalid item expressions shouldn't cause an error in the splitting function.
@@ -396,24 +396,24 @@ namespace Microsoft.Build.UnitTests.Evaluation
         [Fact]
         public void InvalidItemExpressions()
         {
-            VerifySplitSemiColonSeparatedList("@(x", "@(x");
-            VerifySplitSemiColonSeparatedList("@(x->')", "@(x->')");
-            VerifySplitSemiColonSeparatedList("@(x->)", "@(x->)");
-            VerifySplitSemiColonSeparatedList("@(x->''", "@(x->''");
-            VerifySplitSemiColonSeparatedList("@(x->)", "@(x->)");
-            VerifySplitSemiColonSeparatedList("@(x->", "@(x->");
-            VerifySplitSemiColonSeparatedList("@(x,')", "@(x,')");
+            VerifySplitSemicolonSeparatedList("@(x", "@(x");
+            VerifySplitSemicolonSeparatedList("@(x->')", "@(x->')");
+            VerifySplitSemicolonSeparatedList("@(x->)", "@(x->)");
+            VerifySplitSemicolonSeparatedList("@(x->''", "@(x->''");
+            VerifySplitSemicolonSeparatedList("@(x->)", "@(x->)");
+            VerifySplitSemicolonSeparatedList("@(x->", "@(x->");
+            VerifySplitSemicolonSeparatedList("@(x,')", "@(x,')");
 
             // This one doesn't remove the ';' because it thinks it's in
             // an item list. This isn't worth tweaking, because the invalid expression is
             // going to lead to an error in the caller whether there's a ';' or not.
-            VerifySplitSemiColonSeparatedList("@(x''';", "@(x''';");
+            VerifySplitSemicolonSeparatedList("@(x''';", "@(x''';");
         }
 
         [Fact]
         public void RealisticExample()
         {
-            VerifySplitSemiColonSeparatedList("@(_OutputPathItem->'%(FullPath)', ';');$(MSBuildAllProjects);\n                @(Compile);\n                @(ManifestResourceWithNoCulture);\n                $(ApplicationIcon);\n                $(AssemblyOriginatorKeyFile);\n                @(ManifestNonResxWithNoCultureOnDisk);\n                @(ReferencePath);\n                @(CompiledLicenseFile);\n                @(EmbeddedDocumentation);                \n                @(CustomAdditionalCompileInputs)",
+            VerifySplitSemicolonSeparatedList("@(_OutputPathItem->'%(FullPath)', ';');$(MSBuildAllProjects);\n                @(Compile);\n                @(ManifestResourceWithNoCulture);\n                $(ApplicationIcon);\n                $(AssemblyOriginatorKeyFile);\n                @(ManifestNonResxWithNoCultureOnDisk);\n                @(ReferencePath);\n                @(CompiledLicenseFile);\n                @(EmbeddedDocumentation);                \n                @(CustomAdditionalCompileInputs)",
                 "@(_OutputPathItem->'%(FullPath)', ';')", "$(MSBuildAllProjects)", "@(Compile)", "@(ManifestResourceWithNoCulture)", "$(ApplicationIcon)", "$(AssemblyOriginatorKeyFile)", "@(ManifestNonResxWithNoCultureOnDisk)", "@(ReferencePath)", "@(CompiledLicenseFile)", "@(EmbeddedDocumentation)", "@(CustomAdditionalCompileInputs)");
         }
 
@@ -429,7 +429,7 @@ namespace Microsoft.Build.UnitTests.Evaluation
         [Fact]
         public void SpacingInItemListExpression()
         {
-            VerifySplitSemiColonSeparatedList("@(   foo  \n ->  \t  ';abc;def;'   , \t  'ghi;jkl'   )", "@(   foo  \n ->  \t  ';abc;def;'   , \t  'ghi;jkl'   )");
+            VerifySplitSemicolonSeparatedList("@(   foo  \n ->  \t  ';abc;def;'   , \t  'ghi;jkl'   )", "@(   foo  \n ->  \t  ';abc;def;'   , \t  'ghi;jkl'   )");
         }
 
         /// <summary>
@@ -437,9 +437,9 @@ namespace Microsoft.Build.UnitTests.Evaluation
         /// </summary>
         /// <param name="input"></param>
         /// <param name="expected"></param>
-        private void VerifySplitSemiColonSeparatedList(string input, params string[] expected)
+        private void VerifySplitSemicolonSeparatedList(string input, params string[] expected)
         {
-            var actual = ExpressionShredder.SplitSemiColonSeparatedList(input);
+            var actual = ExpressionShredder.SplitSemicolonSeparatedList(input);
             Console.WriteLine(input);
 
             if (null == expected)

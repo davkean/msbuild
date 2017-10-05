@@ -296,7 +296,7 @@ namespace Microsoft.Build.Evaluation
         {
             ErrorUtilities.VerifyThrow((options & ExpanderOptions.BreakOnNotEmpty) == 0, "not supported");
 
-            return ExpressionShredder.SplitSemiColonSeparatedList(ExpandIntoStringLeaveEscaped(expression, options, elementLocation));
+            return ExpressionShredder.SplitSemicolonSeparatedList(ExpandIntoStringLeaveEscaped(expression, options, elementLocation));
         }
 
         /// <summary>
@@ -341,7 +341,7 @@ namespace Microsoft.Build.Evaluation
                 return result;
             }
 
-            IList<string> splits = ExpressionShredder.SplitSemiColonSeparatedList(expression);
+            IList<string> splits = ExpressionShredder.SplitSemicolonSeparatedList(expression);
 
             // Don't box via IEnumerator and foreach; cache count so not to evaluate via interface each iteration
             var splitsCount = splits.Count;
@@ -2239,7 +2239,7 @@ namespace Microsoft.Build.Evaluation
                                 // that case.
                                 if (s_invariantCompareInfo.IndexOf(metadataValue, ';') >= 0)
                                 {
-                                    IList<string> splits = ExpressionShredder.SplitSemiColonSeparatedList(metadataValue);
+                                    IList<string> splits = ExpressionShredder.SplitSemicolonSeparatedList(metadataValue);
 
                                     foreach (string itemSpec in splits)
                                     {

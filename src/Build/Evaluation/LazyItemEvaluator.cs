@@ -469,7 +469,7 @@ namespace Microsoft.Build.Evaluation
 
                 if (evaluatedExclude.Length > 0)
                 {
-                    IList<string> excludeSplits = ExpressionShredder.SplitSemiColonSeparatedList(evaluatedExclude);
+                    IList<string> excludeSplits = ExpressionShredder.SplitSemicolonSeparatedList(evaluatedExclude);
 
                     operationBuilder.Excludes.AddRange(excludeSplits);
 

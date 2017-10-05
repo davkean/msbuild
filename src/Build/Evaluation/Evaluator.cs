@@ -415,7 +415,7 @@ namespace Microsoft.Build.Evaluation
             // STEP 2: Split Include on any semicolons, and take each split in turn
             if (evaluatedIncludeEscaped.Length > 0)
             {
-                IList<string> includeSplitsEscaped = ExpressionShredder.SplitSemiColonSeparatedList(evaluatedIncludeEscaped);
+                IList<string> includeSplitsEscaped = ExpressionShredder.SplitSemicolonSeparatedList(evaluatedIncludeEscaped);
 
                 foreach (string includeSplitEscaped in includeSplitsEscaped)
                 {
@@ -1764,7 +1764,7 @@ namespace Microsoft.Build.Evaluation
 
             var expandedItemSet =
                 new HashSet<string>(
-                    ExpressionShredder.SplitSemiColonSeparatedList
+                    ExpressionShredder.SplitSemicolonSeparatedList
                         (
                             _expander.ExpandIntoStringLeaveEscaped(itemElement.Update, ExpanderOptions.ExpandPropertiesAndItems, itemElement.Location)
                         )
@@ -1800,7 +1800,7 @@ namespace Microsoft.Build.Evaluation
 
                 if (evaluatedExclude.Length > 0)
                 {
-                    IList<string> excludeSplits = ExpressionShredder.SplitSemiColonSeparatedList(evaluatedExclude);
+                    IList<string> excludeSplits = ExpressionShredder.SplitSemicolonSeparatedList(evaluatedExclude);
 
                     HashSet<string> excludes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -2467,7 +2467,7 @@ namespace Microsoft.Build.Evaluation
             bool atleastOneImportEmpty = false;
             imports = new List<ProjectRootElement>();
 
-            foreach (string importExpressionEscapedItem in ExpressionShredder.SplitSemiColonSeparatedList(importExpressionEscaped))
+            foreach (string importExpressionEscapedItem in ExpressionShredder.SplitSemicolonSeparatedList(importExpressionEscaped))
             {
                 string[] importFilesEscaped = null;
 

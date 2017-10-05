@@ -85,7 +85,7 @@ namespace Microsoft.Build.Evaluation
         /// </remarks>
         /// <param name="expression">List expression to split</param>
         /// <returns>Array of non-empty strings from split list.</returns>
-        internal static IList<string> SplitSemiColonSeparatedList(StringSegment expression)
+        internal static IList<string> SplitSemicolonSeparatedList(StringSegment expression)
         {
             List<string> splitList = null;
             foreach (StringSegment segment in new SemicolonTokenizer(expression))

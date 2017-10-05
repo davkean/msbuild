@@ -45,7 +45,7 @@ namespace Microsoft.Build.Evaluation
                     foreach (string exclude in _excludes)
                     {
                         string excludeExpanded = _expander.ExpandIntoStringLeaveEscaped(exclude, ExpanderOptions.ExpandPropertiesAndItems, _itemElement.ExcludeLocation);
-                        IList<string> excludeSplits = ExpressionShredder.SplitSemiColonSeparatedList(excludeExpanded);
+                        IList<string> excludeSplits = ExpressionShredder.SplitSemicolonSeparatedList(excludeExpanded);
                         excludePatterns.AddRange(excludeSplits);
                     }
 

@@ -74,7 +74,7 @@ namespace Microsoft.Build.Evaluation
             // STEP 2: Split Include on any semicolons, and take each split in turn
             if (evaluatedItemspecEscaped.Length > 0)
             {
-                var splitsEscaped = ExpressionShredder.SplitSemiColonSeparatedList(evaluatedItemspecEscaped);
+                var splitsEscaped = ExpressionShredder.SplitSemicolonSeparatedList(evaluatedItemspecEscaped);
 
                 foreach (var splitEscaped in splitsEscaped)
                 {

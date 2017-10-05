@@ -1307,7 +1307,7 @@ namespace Microsoft.Build.BackEnd
                 return null;
             }
             
-            return new HashSet<string>(ExpressionShredder.SplitSemiColonSeparatedList(warnings), StringComparer.OrdinalIgnoreCase);
+            return new HashSet<string>(ExpressionShredder.SplitSemicolonSeparatedList(warnings), StringComparer.OrdinalIgnoreCase);
         }
     }
 }
