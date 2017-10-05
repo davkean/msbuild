@@ -65,6 +65,25 @@ namespace Microsoft.Build.Evaluation
         ///  We must not split on semicolons in macro or separator expressions like these.
         /// </remarks>
         /// <param name="expression">List expression to split</param>
+        /// <returns>SemicolonTokenizer that can be iteratored to return non-empty strings from split list.</returns>
+        internal static SemicolonTokenizer TokenizeSemicolonSeparatedList(StringSegment expression)
+        {
+            return new SemicolonTokenizer(expression);
+        }
+
+        /// <summary>
+        /// Splits an expression into fragments at semi-colons, except where the
+        /// semi-colons are in a macro or separator expression.
+        /// Fragments are trimmed and empty fragments discarded.
+        /// </summary>
+        /// <remarks>
+        /// These complex cases prevent us from doing a simple split on ';':
+        ///  (1) Macro expression: @(foo->'xxx;xxx')
+        ///  (2) Separator expression: @(foo, 'xxx;xxx')
+        ///  (3) Combination: @(foo->'xxx;xxx', 'xxx;xxx')
+        ///  We must not split on semicolons in macro or separator expressions like these.
+        /// </remarks>
+        /// <param name="expression">List expression to split</param>
         /// <returns>Array of non-empty strings from split list.</returns>
         internal static IList<string> SplitSemiColonSeparatedList(StringSegment expression)
         {
