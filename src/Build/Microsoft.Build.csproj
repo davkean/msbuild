@@ -233,6 +233,7 @@
     <Compile Include="BackEnd\Components\SdkResolution\SdkResolution.cs" />
     <Compile Include="BackEnd\Components\SdkResolution\SdkResolverLoader.cs" />
     <Compile Include="BackEnd\Shared\ConfigurationMetadata.cs" />
+    <Compile Include="Evaluation\SemicolonTokenizer.cs" />
     <Compile Include="StringTokenizer.cs" />
     <Compile Include="Collections\ConcurrentQueueExtensions.cs" />
     <Compile Include="Collections\ConcurrentStackExtensions.cs" />
