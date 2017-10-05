@@ -67,6 +67,25 @@ namespace Microsoft.Build.Evaluation
         /// <returns>Array of non-empty strings from split list.</returns>
         internal static IList<string> SplitSemiColonSeparatedList(string expression)
         {
+            return SplitSemiColonSeparatedList((StringSegment)expression);
+        }
+
+        /// <summary>
+        /// Splits an expression into fragments at semi-colons, except where the
+        /// semi-colons are in a macro or separator expression.
+        /// Fragments are trimmed and empty fragments discarded.
+        /// </summary>
+        /// <remarks>
+        /// These complex cases prevent us from doing a simple split on ';':
+        ///  (1) Macro expression: @(foo->'xxx;xxx')
+        ///  (2) Separator expression: @(foo, 'xxx;xxx')
+        ///  (3) Combination: @(foo->'xxx;xxx', 'xxx;xxx')
+        ///  We must not split on semicolons in macro or separator expressions like these.
+        /// </remarks>
+        /// <param name="expression">List expression to split</param>
+        /// <returns>Array of non-empty strings from split list.</returns>
+        internal static IList<string> SplitSemiColonSeparatedList(StringSegment expression)
+        {
             expression = expression.Trim();
 
             if (expression.Length == 0)
@@ -78,7 +97,7 @@ namespace Microsoft.Build.Evaluation
             int segmentStart = 0;
             bool insideItemList = false;
             bool insideQuotedPart = false;
-            string segment;
+            StringSegment segment;
 
             // Walk along the string, keeping track of whether we are in an item list expression.
             // If we hit a semi-colon or the end of the string and we aren't in an item list, 
@@ -94,7 +113,7 @@ namespace Microsoft.Build.Evaluation
                             segment = expression.Substring(segmentStart, current - segmentStart).Trim();
                             if (segment.Length > 0)
                             {
-                                splitList.Add(segment);
+                                splitList.Add(segment.Value);
                             }
 
                             // Move past this semicolon
@@ -134,7 +153,7 @@ namespace Microsoft.Build.Evaluation
             segment = expression.Substring(segmentStart, expression.Length - segmentStart).Trim();
             if (segment.Length > 0)
             {
-                splitList.Add(segment);
+                splitList.Add(segment.Value);
             }
 
             return splitList;
