@@ -415,10 +415,11 @@ namespace Microsoft.Build.Evaluation
             // STEP 2: Split Include on any semicolons, and take each split in turn
             if (evaluatedIncludeEscaped.Length > 0)
             {
-                IList<string> includeSplitsEscaped = ExpressionShredder.SplitSemicolonSeparatedList(evaluatedIncludeEscaped);
+                var includeSplitsEscaped = ExpressionShredder.TokenizeSemicolonSeparatedList(evaluatedIncludeEscaped);
 
-                foreach (string includeSplitEscaped in includeSplitsEscaped)
+                foreach (StringSegment includeSplitEscapedSegment in includeSplitsEscaped)
                 {
+                    string includeSplitEscaped = includeSplitEscapedSegment.Value;
                     // STEP 3: If expression is "@(x)" copy specified list with its metadata, otherwise just treat as string
                     bool throwaway;
                     IList<I> itemsFromSplit = expander.ExpandSingleItemVectorExpressionIntoItems(includeSplitEscaped, itemFactory, ExpanderOptions.ExpandItems, false /* do not include null expansion results */, out throwaway, itemElement.IncludeLocation);
@@ -1800,13 +1801,13 @@ namespace Microsoft.Build.Evaluation
 
                 if (evaluatedExclude.Length > 0)
                 {
-                    IList<string> excludeSplits = ExpressionShredder.SplitSemicolonSeparatedList(evaluatedExclude);
+                    var excludeSplits = ExpressionShredder.TokenizeSemicolonSeparatedList(evaluatedExclude);
 
                     HashSet<string> excludes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-                    foreach (string excludeSplit in excludeSplits)
+                    foreach (StringSegment excludeSplit in excludeSplits)
                     {
-                        string[] excludeSplitFiles = EngineFileUtilities.GetFileListEscaped(_projectRootElement.DirectoryPath, excludeSplit);
+                        string[] excludeSplitFiles = EngineFileUtilities.GetFileListEscaped(_projectRootElement.DirectoryPath, excludeSplit.Value);
 
                         foreach (string excludeSplitFile in excludeSplitFiles)
                         {
@@ -2467,8 +2468,9 @@ namespace Microsoft.Build.Evaluation
             bool atleastOneImportEmpty = false;
             imports = new List<ProjectRootElement>();
 
-            foreach (string importExpressionEscapedItem in ExpressionShredder.SplitSemicolonSeparatedList(importExpressionEscaped))
+            foreach (StringSegment importExpressionEscapedItemSegment in ExpressionShredder.TokenizeSemicolonSeparatedList(importExpressionEscaped))
             {
+                string importExpressionEscapedItem = importExpressionEscapedItemSegment.Value;
                 string[] importFilesEscaped = null;
 
                 try

@@ -341,13 +341,12 @@ namespace Microsoft.Build.Evaluation
                 return result;
             }
 
-            IList<string> splits = ExpressionShredder.SplitSemicolonSeparatedList(expression);
+            var splits = ExpressionShredder.TokenizeSemicolonSeparatedList(expression);
 
             // Don't box via IEnumerator and foreach; cache count so not to evaluate via interface each iteration
-            var splitsCount = splits.Count;
-            for (var i = 0; i < splitsCount; i++)
+            foreach(StringSegment splitSegment in splits)
             {
-                var split = splits[i];
+                string split = splitSegment.Value;
                 bool isTransformExpression;
                 IList<T> itemsToAdd = ItemExpander.ExpandSingleItemVectorExpressionIntoItems<I, T>(this, split, _items, itemFactory, options, false /* do not include null items */, out isTransformExpression, elementLocation);
 
@@ -2239,12 +2238,12 @@ namespace Microsoft.Build.Evaluation
                                 // that case.
                                 if (s_invariantCompareInfo.IndexOf(metadataValue, ';') >= 0)
                                 {
-                                    IList<string> splits = ExpressionShredder.SplitSemicolonSeparatedList(metadataValue);
+                                    var splits = ExpressionShredder.TokenizeSemicolonSeparatedList(metadataValue);
 
-                                    foreach (string itemSpec in splits)
+                                    foreach (StringSegment itemSpec in splits)
                                     {
                                         // return a result through the enumerator
-                                        yield return new Tuple<string, S>(itemSpec, item.Item2);
+                                        yield return new Tuple<string, S>(itemSpec.Value, item.Item2);
                                     }
                                 }
                                 else
