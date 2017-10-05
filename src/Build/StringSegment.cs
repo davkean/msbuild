@@ -587,6 +587,18 @@ namespace Microsoft.Build
         }
 
         /// <summary>
+        /// Splits a string into StringSegments that are based on the characters in an array.
+        /// </summary>
+        /// <param name="chars">A character array that delimits the substrings in this string, an empty array that
+        /// contains no delimiters, or null.</param>
+        /// <returns>An <see cref="StringTokenizer"/> whose elements contain the StringSegmeents from this instance
+        /// that are delimited by one or more characters in separator.</returns>
+        public StringTokenizer Split(char[] chars)
+        {
+            return new StringTokenizer(this, chars);
+        }
+
+        /// <summary>
         /// Indicates whether the specified StringSegment is null or an Empty string.
         /// </summary>
         /// <param name="value">The StringSegment to test.</param>
