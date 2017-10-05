@@ -321,6 +321,7 @@ namespace Microsoft.Build
 
             return string.Compare(Buffer, Offset + Length - textLength, text, 0, textLength, comparisonType) == 0;
         }
+#if NEVER
 
         /// <summary>
         /// Retrieves a substring from this <see cref="StringSegment"/>.
@@ -361,6 +362,7 @@ namespace Microsoft.Build
 
             return Buffer.Substring(Offset + offset, length);
         }
+#endif
 
         /// <summary>
         /// Retrieves a <see cref="StringSegment"/> that represents a substring from this <see cref="StringSegment"/>.
@@ -369,9 +371,9 @@ namespace Microsoft.Build
         /// <param name="offset">The zero-based starting character position of a substring in this <see cref="StringSegment"/>.</param>
         /// <returns>A <see cref="StringSegment"/> that begins at <paramref name="offset"/> in this <see cref="StringSegment"/>
         /// whose length is the remainder.</returns>
-        public StringSegment Subsegment(int offset)
+        public StringSegment Substring(int offset)
         {
-            return Subsegment(offset, Length - offset);
+            return Substring(offset, Length - offset);
         }
 
         /// <summary>
@@ -381,7 +383,7 @@ namespace Microsoft.Build
         /// <param name="offset">The zero-based starting character position of a substring in this <see cref="StringSegment"/>.</param>
         /// <param name="length">The number of characters in the substring.</param>
         /// <returns>A <see cref="StringSegment"/> that is equivalent to the substring of length <paramref name="length"/> that begins at <paramref name="offset"/> in this <see cref="StringSegment"/></returns>
-        public StringSegment Subsegment(int offset, int length)
+        public StringSegment Substring(int offset, int length)
         {
             if (!HasValue)
             {
