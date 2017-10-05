@@ -65,25 +65,6 @@ namespace Microsoft.Build.Evaluation
         /// </remarks>
         /// <param name="expression">List expression to split</param>
         /// <returns>Array of non-empty strings from split list.</returns>
-        internal static IList<string> SplitSemiColonSeparatedList(string expression)
-        {
-            return SplitSemiColonSeparatedList((StringSegment)expression);
-        }
-
-        /// <summary>
-        /// Splits an expression into fragments at semi-colons, except where the
-        /// semi-colons are in a macro or separator expression.
-        /// Fragments are trimmed and empty fragments discarded.
-        /// </summary>
-        /// <remarks>
-        /// These complex cases prevent us from doing a simple split on ';':
-        ///  (1) Macro expression: @(foo->'xxx;xxx')
-        ///  (2) Separator expression: @(foo, 'xxx;xxx')
-        ///  (3) Combination: @(foo->'xxx;xxx', 'xxx;xxx')
-        ///  We must not split on semicolons in macro or separator expressions like these.
-        /// </remarks>
-        /// <param name="expression">List expression to split</param>
-        /// <returns>Array of non-empty strings from split list.</returns>
         internal static IList<string> SplitSemiColonSeparatedList(StringSegment expression)
         {
             expression = expression.Trim();
