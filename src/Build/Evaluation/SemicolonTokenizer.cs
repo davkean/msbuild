@@ -59,7 +59,72 @@ namespace Microsoft.Build.Evaluation
 
             public bool MoveNext()
             {
-                throw new System.NotImplementedException();
+                int segmentStart = _index;
+                bool insideItemList = false;
+                bool insideQuotedPart = false;
+                StringSegment segment;
+
+                // Walk along the string, keeping track of whether we are in an item list expression.
+                // If we hit a semi-colon or the end of the string and we aren't in an item list, 
+                // add the segment to the list.
+                for (; _index < _expression.Length; _index++)
+                {
+                    switch (_expression[_index])
+                    {
+                        case ';':
+                            if (!insideItemList)
+                            {
+                                // End of segment, so add it to the list
+                                segment = _expression.Substring(segmentStart, _index - segmentStart).Trim();
+                                if (segment.Length > 0)
+                                {
+                                    _current = segment.Value;
+                                    return true;
+                                }
+
+                                // Move past this semicolon
+                                segmentStart = _index + 1;
+                            }
+
+                            break;
+                        case '@':
+                            // An '@' immediately followed by a '(' is the start of an item list
+                            if (_expression.Length > _index + 1 && _expression[_index + 1] == '(')
+                            {
+                                // Start of item expression
+                                insideItemList = true;
+                            }
+
+                            break;
+                        case ')':
+                            if (insideItemList && !insideQuotedPart)
+                            {
+                                // End of item expression
+                                insideItemList = false;
+                            }
+
+                            break;
+                        case '\'':
+                            if (insideItemList)
+                            {
+                                // Start or end of quoted expression in item expression
+                                insideQuotedPart = !insideQuotedPart;
+                            }
+
+                            break;
+                    }
+                }
+
+                // Reached the end of the string: what's left is another segment
+                segment = _expression.Substring(segmentStart, _expression.Length - segmentStart).Trim();
+                if (segment.Length > 0)
+                {
+                    _current = segment.Value;
+                    return true;
+                }
+
+                _current = default(StringSegment);
+                return false;
             }
 
             public void Reset()

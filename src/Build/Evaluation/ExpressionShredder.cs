@@ -6,6 +6,7 @@
 //-----------------------------------------------------------------------
 
 using System;
+using System.Linq;
 using System.Collections;
 #if FEATURE_SECURITY_PERMISSIONS
 using System.Security.Permissions;
@@ -67,77 +68,10 @@ namespace Microsoft.Build.Evaluation
         /// <returns>Array of non-empty strings from split list.</returns>
         internal static IList<string> SplitSemiColonSeparatedList(StringSegment expression)
         {
-            expression = expression.Trim();
+            var tokenizer = new SemicolonTokenizer(expression);
 
-            if (expression.Length == 0)
-            {
-                return Array.Empty<string>();
-            }
-
-            List<string> splitList = new List<string>(1);
-            int segmentStart = 0;
-            bool insideItemList = false;
-            bool insideQuotedPart = false;
-            StringSegment segment;
-
-            // Walk along the string, keeping track of whether we are in an item list expression.
-            // If we hit a semi-colon or the end of the string and we aren't in an item list, 
-            // add the segment to the list.
-            for (int current = 0; current < expression.Length; current++)
-            {
-                switch (expression[current])
-                {
-                    case ';':
-                        if (!insideItemList)
-                        {
-                            // End of segment, so add it to the list
-                            segment = expression.Substring(segmentStart, current - segmentStart).Trim();
-                            if (segment.Length > 0)
-                            {
-                                splitList.Add(segment.Value);
-                            }
-
-                            // Move past this semicolon
-                            segmentStart = current + 1;
-                        }
-
-                        break;
-                    case '@':
-                        // An '@' immediately followed by a '(' is the start of an item list
-                        if (expression.Length > current + 1 && expression[current + 1] == '(')
-                        {
-                            // Start of item expression
-                            insideItemList = true;
-                        }
-
-                        break;
-                    case ')':
-                        if (insideItemList && !insideQuotedPart)
-                        {
-                            // End of item expression
-                            insideItemList = false;
-                        }
-
-                        break;
-                    case '\'':
-                        if (insideItemList)
-                        {
-                            // Start or end of quoted expression in item expression
-                            insideQuotedPart = !insideQuotedPart;
-                        }
-
-                        break;
-                }
-            }
-
-            // Reached the end of the string: what's left is another segment
-            segment = expression.Substring(segmentStart, expression.Length - segmentStart).Trim();
-            if (segment.Length > 0)
-            {
-                splitList.Add(segment.Value);
-            }
-
-            return splitList;
+            return tokenizer.Select(s => s.Value)
+                            .ToList();
         }
 
         /// <summary>
