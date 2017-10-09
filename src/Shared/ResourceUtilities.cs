@@ -216,8 +216,19 @@ namespace Microsoft.Build.Shared
             // NOTE: String.Format() does not allow a null arguments array
             if ((args != null) && (args.Length > 0))
             {
-#if DEBUG
+                ValidateArguments(unformatted, args);
 
+                // Format the string, using the variable arguments passed in.
+                // NOTE: all String methods are thread-safe
+                formatted = String.Format(CultureInfo.CurrentCulture, unformatted, args);
+            }
+
+            return formatted;
+        }
+
+        [Conditional("DEBUG")]
+        private static void ValidateArguments(string unformatted, params object[] args)
+        {
 #if VALIDATERESOURCESTRINGS
                 // The code below reveals many places in our codebase where
                 // we're not using all of the data given to us to format
@@ -256,26 +267,19 @@ namespace Microsoft.Build.Shared
                     String.Format("The provided format string '{0}' had fewer format parameters than the number of format args, '{1}'.", unformatted, args.Length)
                 );
 #endif
-                // If you accidentally pass some random type in that can't be converted to a string, 
-                // FormatResourceString calls ToString() which returns the full name of the type!
-                foreach (object param in args)
+            // If you accidentally pass some random type in that can't be converted to a string, 
+            // FormatResourceString calls ToString() which returns the full name of the type!
+            foreach (object param in args)
+            {
+                // Check it has a real implementation of ToString()
+                if (param != null)
                 {
-                    // Check it has a real implementation of ToString()
-                    if (param != null)
+                    if (String.Equals(param.GetType().ToString(), param.ToString(), StringComparison.Ordinal))
                     {
-                        if (String.Equals(param.GetType().ToString(), param.ToString(), StringComparison.Ordinal))
-                        {
-                            ErrorUtilities.ThrowInternalError("Invalid resource parameter type, was {0}", param.GetType().FullName);
-                        }
+                        ErrorUtilities.ThrowInternalError("Invalid resource parameter type, was {0}", param.GetType().FullName);
                     }
                 }
-#endif
-                // Format the string, using the variable arguments passed in.
-                // NOTE: all String methods are thread-safe
-                formatted = String.Format(CultureInfo.CurrentCulture, unformatted, args);
             }
-
-            return formatted;
         }
 
         /// <summary>
