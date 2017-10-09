@@ -169,7 +169,7 @@ namespace Microsoft.Build.Shared
             helpKeyword = GetHelpKeyword(resourceName);
 
             // NOTE: the AssemblyResources.GetString() method is thread-safe
-            return ExtractMessageCode(true /* msbuildCodeOnly */, FormatString(GetResourceString(resourceName), args), out code);
+            return ExtractMessageCode(true /* msbuildCodeOnly */, FormatResourceString(resourceName, args), out code);
         }
 
         [Obsolete("Use GetResourceString instead.", true)]
@@ -192,10 +192,7 @@ namespace Microsoft.Build.Shared
         /// <returns>The formatted resource string.</returns>
         internal static string FormatResourceString(string resourceName, params object[] args)
         {
-            string code;
-            string helpKeyword;
-
-            return FormatResourceString(out code, out helpKeyword, resourceName, args);
+            return FormatString(GetResourceString(resourceName), args);
         }
 
         /// <summary>
