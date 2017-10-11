@@ -145,7 +145,7 @@ namespace Microsoft.Build.Evaluation
         private class MemoizedOperation : IItemOperation
         {
             public IItemOperation Operation { get; }
-            private Dictionary<ISet<string>, ImmutableList<ItemData>> _cache;
+            private Dictionary<ImmutableHashSet<string>, ImmutableList<ItemData>> _cache;
 
             private bool _isReferenced;
 #if DEBUG
@@ -193,7 +193,7 @@ namespace Microsoft.Build.Evaluation
             }
 #endif
 
-            public bool TryGetFromCache(ISet<string> globsToIgnore, out ImmutableList<ItemData> items)
+            public bool TryGetFromCache(ImmutableHashSet<string> globsToIgnore, out ImmutableList<ItemData> items)
             {
                 if (_cache != null)
                 {
@@ -216,7 +216,7 @@ namespace Microsoft.Build.Evaluation
             {
                 if (_cache == null)
                 {
-                    _cache = new Dictionary<ISet<string>, ImmutableList<ItemData>>();
+                    _cache = new Dictionary<ImmutableHashSet<string>, ImmutableList<ItemData>>();
                 }
 
                 _cache[globsToIgnore] = items;
