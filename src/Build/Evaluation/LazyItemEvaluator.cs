@@ -221,11 +221,6 @@ namespace Microsoft.Build.Evaluation
 
                 _cache[globsToIgnore] = items;
             }
-
-            private bool IsCached(ISet<string> globsToIgnore)
-            {
-                return _cache != null && _cache.ContainsKey(globsToIgnore);
-            }
         }
 
         private class LazyItemList
